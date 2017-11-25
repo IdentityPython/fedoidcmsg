@@ -209,6 +209,9 @@ class Operator(object):
                   self.keyjar.get_signing_key(owner=self.iss)]
         return {'keys': _l}
 
+    def signing_keys_as_jwks_json(self):
+        return json.dumps(self.signing_keys_as_jwks())
+
     def _ums(self, pr, meta_s, keyjar):
         try:
             _pi = self.unpack_metadata_statement(
@@ -263,7 +266,8 @@ class Operator(object):
         for _ms in _pr.parsed_statement:
             if _ms:  # can be None
                 try:
-                    keyjar.import_jwks(_ms['signing_keys'], json_ms['iss'])
+                    keyjar.import_jwks_as_json(_ms['signing_keys'],
+                                               json_ms['iss'])
                 except KeyError:
                     pass
                 else:
@@ -361,7 +365,7 @@ class Operator(object):
         if alg:
             _jwt.sign_alg = alg
 
-        if iss in keyjar.keys():
+        if iss in keyjar.owners():
             owner = iss
         else:
             owner = ''

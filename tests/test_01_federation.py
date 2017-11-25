@@ -1,3 +1,4 @@
+import json
 import os
 
 from fedoicmsg import ClientMetadataStatement
@@ -34,7 +35,7 @@ for entity in ['fo', 'fo1', 'org', 'inter', 'admin', 'ligo', 'op']:
     _keydef[0]['key'] = fname
 
     _jwks, _keyjar, _kidd = build_keyjar(_keydef)
-    KEYS[entity] = {'jwks': _jwks, 'keyjar': _keyjar, 'kidd': _kidd}
+    KEYS[entity] = {'jwks': json.dumps(_jwks), 'keyjar': _keyjar, 'kidd': _kidd}
     ISSUER[entity] = 'https://{}.example.org'.format(entity)
     OPERATOR[entity] = Operator(keyjar=_keyjar, iss=ISSUER[entity])
 
@@ -65,7 +66,8 @@ def test_create_metadata_statement_simple():
     ms = MetadataStatement(signing_keys=KEYS['org']['jwks'])
 
     assert ms
-    assert len(ms['signing_keys']['keys']) == 2
+    sig_keys=json.loads(ms['signing_keys'])
+    assert len(sig_keys['keys']) == 2
 
 
 def test_create_client_metadata_statement():
@@ -81,8 +83,9 @@ def test_create_client_metadata_statement():
 
 
 def test_pack_and_unpack_ms_lev0():
-    cms = ClientMetadataStatement(signing_keys=FOP.keyjar.export_jwks(),
-                                  contacts=['info@example.com'])
+    cms = ClientMetadataStatement(
+        signing_keys=json.dumps(FOP.keyjar.export_jwks_as_json()),
+        contacts=['info@example.com'])
 
     _jwt = FOP.pack_metadata_statement(cms, alg='RS256', scope=['openid'])
 
@@ -123,7 +126,7 @@ def test_pack_ms_wrong_fo():
 def test_pack_and_unpack_ms_lev1():
     # metadata statement created by the organization
     cms_org = ClientMetadataStatement(
-        signing_keys=ORGOP.keyjar.export_jwks(),
+        signing_keys=ORGOP.keyjar.export_jwks_as_json(),
         contacts=['info@example.com']
     )
 
@@ -132,7 +135,7 @@ def test_pack_and_unpack_ms_lev1():
 
     # metadata statement created by the admin
     cms_rp = ClientMetadataStatement(
-        signing_keys=ADMINOP.keyjar.export_jwks(),
+        signing_keys=ADMINOP.keyjar.export_jwks_as_json(),
         redirect_uris=['https://rp.example.com/auth_cb']
     )
 
@@ -156,7 +159,7 @@ def test_pack_and_unpack_ms_lev2():
 
     cms_inter = ClientMetadataStatement(
         signing_keys=KEYS['inter']['jwks'],
-        tos_uri=['https://inter.example.com/tos.html']
+        tos_uri='https://inter.example.com/tos.html'
     )
 
     #  signed by org
@@ -262,14 +265,15 @@ def test_is_lesser_list():
 
 def test_evaluate_metadata_statement_1():
     cms_org = ClientMetadataStatement(
-        signing_keys=ORGOP.keyjar.export_jwks(), contacts=['info@example.com'])
+        signing_keys=ORGOP.keyjar.export_jwks_as_json(),
+        contacts=['info@example.com'])
 
     #  signed by FO
     ms_org = FOP.pack_metadata_statement(cms_org, alg='RS256', scope=['openid'])
 
     cms_inter = ClientMetadataStatement(
         signing_keys=KEYS['inter']['jwks'],
-        tos_uri=['https://inter.example.com/tos.html']
+        tos_uri='https://inter.example.com/tos.html'
     )
 
     #  signed by org
@@ -309,7 +313,7 @@ def test_evaluate_metadata_statement_2():
 
     cms_inter = ClientMetadataStatement(
         signing_keys=KEYS['inter']['jwks'],
-        tos_uri=['https://inter.example.com/tos.html']
+        tos_uri='https://inter.example.com/tos.html'
     )
 
     #  signed by org
@@ -359,7 +363,7 @@ def test_evaluate_metadata_statement_3():
 
     cms_inter = ClientMetadataStatement(
         signing_keys=KEYS['inter']['jwks'],
-        tos_uri=['https://inter.example.com/tos.html']
+        tos_uri='https://inter.example.com/tos.html'
     )
 
     ms_inter = {}
@@ -414,7 +418,7 @@ def test_evaluate_metadata_statement_4():
 
     cms_inter = ClientMetadataStatement(
         signing_keys=KEYS['inter']['jwks'],
-        tos_uri=['https://inter.example.com/tos.html']
+        tos_uri='https://inter.example.com/tos.html'
     )
 
     #  signed by org
@@ -507,8 +511,7 @@ def test_create_verify_fo_keys_bundle():
     jb[FO1P.iss] = FO1P.keyjar
     sb = jb.create_signed_bundle()
 
-    kj = KeyJar()
-    kj.add_keyjar(ORGOP.keyjar)
+    kj = ORGOP.keyjar.copy()
 
     # Necessary since otherwise it won't find the key
     kj.issuer_keys[ORGOP.iss] = kj.issuer_keys['']

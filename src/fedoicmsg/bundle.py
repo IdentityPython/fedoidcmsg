@@ -43,7 +43,7 @@ class JWKSBundle(object):
             value = kj
         else:
             _val = value.copy()
-            _iss = list(_val.keys())
+            _iss = list(_val.owners())
             if _iss == ['']:
                 _val.issuer_keys[key] = _val.issuer_keys['']
                 del _val.issuer_keys['']
@@ -94,7 +94,7 @@ class JWKSBundle(object):
         """
         data = self.dict(iss_list)
         _jwt = JWT(self.sign_keys, iss=self.iss, sign_alg=sign_alg)
-        return _jwt.pack(bundle=data)
+        return _jwt.pack({'bundle':data})
 
     def loads(self, jstr):
         """
@@ -150,9 +150,9 @@ class JWKSBundle(object):
         for iss, kj in self.bundle.items():
             if iss_list is None or iss in iss_list:
                 try:
-                    _int[iss] = kj.export_jwks(issuer=iss)
+                    _int[iss] = kj.export_jwks_as_json(issuer=iss)
                 except KeyError:
-                    _int[iss] = kj.export_jwks()
+                    _int[iss] = kj.export_jwks_as_json()
         return _int
 
     def upload_signed_bundle(self, sign_bundle, ver_keys):
@@ -257,7 +257,7 @@ def jwks_to_keyjar(jwks, iss=''):
 
 
 def k_to_j(keyjar, private=False):
-    k = list(keyjar.keys())
+    k = list(keyjar.owners())
     if len(k) == 1:
         return json.dumps(keyjar.export_jwks(issuer=k[0], private=private))
     elif len(k) == 2 and '' in k:
