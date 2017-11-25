@@ -1,3 +1,5 @@
+import json
+
 from fedoicmsg import MetadataStatement
 from fedoicmsg.bundle import jwks_to_keyjar
 from fedoicmsg.utils import request_signed_by_signing_keys
@@ -19,7 +21,7 @@ JWKS, KEYJAR, _ = build_keyjar(KEYDEFS)
 
 def test_jwks_to_keyjar():
     _kj = jwks_to_keyjar(JWKS)
-    assert list(_kj.keys()) == ['']
+    assert list(_kj.owners()) == ['']
     assert len(_kj.get_signing_key('RSA',owner='')) == 2
     assert len(_kj.get_signing_key('EC',owner='')) == 1
 
@@ -32,7 +34,7 @@ def test_self_signed_jwks():
 
     res = verify_self_signed_jwks(ssj)
     _kj = jwks_to_keyjar(res['jwks'], res['iss'])
-    assert list(_kj.keys()) == ['abc']
+    assert list(_kj.owners()) == ['abc']
     assert len(_kj.get_signing_key('RSA',owner='abc')) == 2
     assert len(_kj.get_signing_key('EC',owner='abc')) == 1
 
@@ -40,7 +42,7 @@ def test_self_signed_jwks():
 def test_request_signed_by_signing_keys():
     kj = KeyJar()
     kj.issuer_keys['abc'] = KEYJAR.issuer_keys['']
-    msreq = MetadataStatement(signing_keys=JWKS)
+    msreq = MetadataStatement(signing_keys=json.dumps(JWKS))
     smsreq = request_signed_by_signing_keys(kj, msreq, 'abc', 3600)
 
     assert smsreq

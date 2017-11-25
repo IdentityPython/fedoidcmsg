@@ -68,8 +68,8 @@ def test_make_jwks_bundle():
     for iss in liss:
         _kj = jb[iss]
         assert isinstance(_kj, KeyJar)
-        assert len(_kj.keys()) == 1  # Issuers
-        assert list(_kj.keys())[0] == iss
+        assert len(_kj.owners()) == 1  # Issuers
+        assert list(_kj.owners())[0] == iss
         _keys = _kj.get_issuer_keys(iss)
         assert len(_keys) == 2
         assert _kj.keys_by_alg_and_usage(iss, 'RS256', 'sig')
@@ -89,8 +89,8 @@ def test_make_fs_jwks_bundle():
     for iss in liss:
         _kj = jb[iss]
         assert isinstance(_kj, KeyJar)
-        assert len(_kj.keys()) == 1  # Issuers
-        assert list(_kj.keys())[0] == iss
+        assert len(_kj.owners()) == 1  # Issuers
+        assert list(_kj.owners())[0] == iss
         _keys = _kj.get_issuer_keys(iss)
         assert len(_keys) == 2
         assert _kj.keys_by_alg_and_usage(iss, 'RS256', 'sig')

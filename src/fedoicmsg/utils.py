@@ -29,7 +29,7 @@ def self_sign_jwks(keyjar, iss, kid='', lifetime=3600):
 
     jwks = keyjar.export_jwks(issuer=iss)
 
-    return _jwt.pack(owner=iss, jwks=jwks, kid=kid)
+    return _jwt.pack(payload={'jwks': jwks}, owner=iss, kid=kid)
 
 
 def verify_self_signed_jwks(sjwt):
@@ -87,7 +87,7 @@ def request_signed_by_signing_keys(keyjar, msreq, iss, lifetime, kid=''):
 
     _jwt = JWT(keyjar, iss=iss, lifetime=lifetime)
 
-    return _jwt.pack(owner=iss, kid=kid, **msreq.to_dict())
+    return _jwt.pack(owner=iss, kid=kid, payload=msreq.to_dict())
 
 
 def verify_request_signed_by_signing_keys(smsreq):

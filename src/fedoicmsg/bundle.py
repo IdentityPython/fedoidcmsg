@@ -109,7 +109,10 @@ class JWKSBundle(object):
 
         for iss, jwks in _info.items():
             kj = KeyJar()
-            kj.import_jwks(jwks, issuer=iss)
+            if isinstance(jwks, dict):
+                kj.import_jwks(jwks, issuer=iss)
+            else:
+                kj.import_jwks_as_json(jwks, issuer=iss)
             self.bundle[iss] = kj
         return self
 

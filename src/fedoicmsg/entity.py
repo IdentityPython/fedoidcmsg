@@ -119,7 +119,7 @@ class FederationEntity(Operator):
         :param statement: Metadata statement to be extended
         :return: The extended statement
         """
-        statement['signing_keys'] = self.signing_keys_as_jwks()
+        statement['signing_keys'] = self.signing_keys_as_jwks_json()
         return statement
 
     def update_request(self, req, federation='', loes=None):

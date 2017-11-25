@@ -102,7 +102,7 @@ def make_ms(desc, leaf, operator, sup=None):
     """
     req = MetadataStatement(**desc['request'])
     _requester = operator[desc['requester']]
-    req['signing_keys'] = _requester.signing_keys_as_jwks()
+    req['signing_keys'] = _requester.signing_keys_as_jwks_json()
 
     _signer = operator[desc['signer']]
     if sup is None:
