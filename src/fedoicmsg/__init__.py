@@ -10,6 +10,7 @@ from oicmsg.exception import VerificationError
 from oicmsg.key_jar import KeyJar
 from oicmsg.message import OPTIONAL_LIST_OF_STRINGS
 from oicmsg.message import SINGLE_OPTIONAL_STRING
+from oicmsg.message import SINGLE_OPTIONAL_JSON
 from oicmsg.oic import JsonWebToken
 from oicmsg.oic import OPTIONAL_MESSAGE
 from oicmsg.oic import RegistrationRequest
@@ -39,7 +40,7 @@ class MetadataStatement(JsonWebToken):
     """
     c_param = JsonWebToken.c_param.copy()
     c_param.update({
-        "signing_keys": SINGLE_OPTIONAL_STRING,
+        "signing_keys": SINGLE_OPTIONAL_JSON,
         'signing_keys_uri': SINGLE_OPTIONAL_STRING,
         'metadata_statements': OPTIONAL_MESSAGE,
         'metadata_statement_uris': OPTIONAL_MESSAGE,
