@@ -265,12 +265,24 @@ class Operator(object):
 
         for _ms in _pr.parsed_statement:
             if _ms:  # can be None
+                loaded = False
                 try:
                     keyjar.import_jwks_as_json(_ms['signing_keys'],
                                                json_ms['iss'])
                 except KeyError:
                     pass
+                except TypeError:
+                    try:
+                        keyjar.import_jwks(_ms['signing_keys'], json_ms['iss'])
+                    except Exception as err:
+                        logger.error(err)
+                        raise
+                    else:
+                        loaded = True
                 else:
+                    loaded = True
+
+                if loaded:
                     logger.debug(
                         'Loaded signing keys belonging to {} into the '
                         'keyjar'.format(json_ms['iss']))
