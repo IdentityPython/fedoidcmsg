@@ -155,7 +155,7 @@ class FileSystem(object):
     def _read_info(self, fname):
         if os.path.isfile(fname):
             try:
-                info = open(fname, 'r').read()
+                info = open(fname, 'r').read().strip()
                 try:
                     info = self.value_conv['from'](info)
                 except KeyError:
