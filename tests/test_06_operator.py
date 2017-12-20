@@ -8,14 +8,15 @@ from urllib.parse import urlparse
 
 from fedoicmsg import MetadataStatement
 from fedoicmsg import test_utils
-from fedoicmsg.bundle import FSJWKSBundle
+from fedoicmsg.bundle import FSJWKSBundle, JWKSBundle
 from fedoicmsg.operator import FederationOperator
 from fedoicmsg.operator import Operator
 from fedoicmsg.test_utils import MetaDataStore
-from jwkest import as_unicode
-from jwkest.jws import factory
+from cryptojwt import as_unicode
+from cryptojwt.jws import factory
 
-from oicmsg.key_jar import build_keyjar
+from oicmsg.key_jar import build_keyjar, KeyJar
+from oicmsg.key_jar import public_keys_keyjar
 
 KEYDEFS = [
     {"type": "RSA", "key": '', "use": ["sig"]},
@@ -75,6 +76,16 @@ signer, keybundle = test_utils.setup(
     mds_dir='msd', base_url='https://localhost')
 
 
+def public_jwks_bundle(jwks_bundle):
+    jb_copy = JWKSBundle('')
+    for fo, kj in jwks_bundle.bundle.items():
+        kj_copy = KeyJar()
+        for owner in kj.owners():
+            public_keys_keyjar(kj, owner, kj_copy, owner)
+        jb_copy.bundle[fo] = kj_copy
+    return jb_copy
+
+
 class Response(object):
     pass
 
@@ -116,8 +127,10 @@ def test_pack_metadata_statement():
     _body = json.loads(as_unicode(_jwt.jwt.part[1]))
     assert _body['iss'] == op.iss
     assert _body['issuer'] == 'https://example.org/op'
+
     # verify signature
-    r = _jwt.verify_compact(sms, _keyjar.get_signing_key())
+    _kj = public_keys_keyjar(_keyjar, '', None, op.iss)
+    r = _jwt.verify_compact(sms, _kj.get_signing_key(owner=op.iss))
     assert r
 
 
@@ -130,8 +143,10 @@ def test_pack_metadata_statement_other_iss():
     _jwt = factory(sms)
     _body = json.loads(as_unicode(_jwt.jwt.part[1]))
     assert _body['iss'] == 'https://example.com/'
+
     # verify signature
-    r = _jwt.verify_compact(sms, _keyjar.get_signing_key())
+    _kj = public_keys_keyjar(_keyjar, '', None, op.iss)
+    r = _jwt.verify_compact(sms, _kj.get_signing_key(owner=op.iss))
     assert r
 
 
@@ -144,8 +159,10 @@ def test_pack_metadata_statement_other_alg():
     _jwt = factory(sms)
     _body = json.loads(as_unicode(_jwt.jwt.part[1]))
     assert _body['iss'] == 'https://example.com/'
+
     # verify signature
-    r = _jwt.verify_compact(sms, _keyjar.get_signing_key())
+    _kj = public_keys_keyjar(_keyjar, '', None, op.iss)
+    r = _jwt.verify_compact(sms, _kj.get_signing_key(owner=op.iss))
     assert r
 
 
@@ -159,7 +176,8 @@ def test_unpack_metadata_statement_uri():
                       key_conv={'to': quote_plus, 'from': unquote_plus})
 
     mds = MetaDataStore('msd')
-    op = Operator(jwks_bundle=jb)
+
+    op = Operator(jwks_bundle=public_jwks_bundle(jb))
     op.httpcli = MockHTTPClient(mds)
     res = op.unpack_metadata_statement(jwt_ms=ms)
     assert len(res.parsed_statement) == 3

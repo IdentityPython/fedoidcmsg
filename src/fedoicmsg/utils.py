@@ -3,9 +3,10 @@ import json
 from fedoicmsg import MetadataStatement
 from fedoicmsg.bundle import jwks_to_keyjar
 
-from jwkest import as_unicode
-from jwkest.jws import JWS, alg2keytype
-from jwkest.jws import factory
+from cryptojwt import as_unicode
+from cryptojwt.jws import alg2keytype
+from cryptojwt.jws import JWS
+from cryptojwt.jws import factory
 
 from oicmsg.oic import JsonWebToken
 from oicmsg.jwt import JWT

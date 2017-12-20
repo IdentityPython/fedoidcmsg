@@ -121,7 +121,7 @@ class JWKSBundle(object):
         Dumps a bundle of keys into a string. If iss_list is empty then all
         issuers are included
         
-        :param iss_list: List of issuers whos keys should be dumped 
+        :param iss_list: List of issuers who's keys should be dumped
         :return: A JSON document
         """
         return json.dumps(self.dict(iss_list))

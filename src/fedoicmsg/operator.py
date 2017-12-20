@@ -9,8 +9,8 @@ from fedoicmsg import IgnoreKeys
 from fedoicmsg import MetadataStatementError
 from fedoicmsg import is_lesser
 from fedoicmsg import unfurl
-from jwkest import BadSignature
-from jwkest.jws import JWSException
+from cryptojwt.exception import BadSignature
+from cryptojwt.jws import JWSException
 
 from oicmsg.exception import MissingSigningKey
 from oicmsg.oauth2 import Message
@@ -372,7 +372,7 @@ class Operator(object):
         # Own copy
         _metadata = copy.deepcopy(metadata)
         _metadata.update(kwargs)
-        _jwt = JWT(keyjar, iss=iss, msgtype=_metadata.__class__,
+        _jwt = JWT(keyjar, iss=iss, msg_cls=_metadata.__class__,
                    lifetime=lifetime)
         if alg:
             _jwt.sign_alg = alg
@@ -383,9 +383,9 @@ class Operator(object):
             owner = ''
 
         if jwt_args:
-            return _jwt.pack(cls_instance=_metadata, owner=owner, **jwt_args)
+            return _jwt.pack(payload=_metadata.to_dict(), owner=owner, **jwt_args)
         else:
-            return _jwt.pack(cls_instance=_metadata, owner=owner)
+            return _jwt.pack(payload=_metadata.to_dict(), owner=owner)
 
     def evaluate_metadata_statement(self, metadata, keyjar=None):
         """

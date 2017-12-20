@@ -1,7 +1,7 @@
 import json
 import logging
 
-from jwkest.jws import factory
+from cryptojwt.jws import factory
 
 from oicmsg import key_bundle
 from oicmsg import oic

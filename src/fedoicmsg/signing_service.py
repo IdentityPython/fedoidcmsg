@@ -10,9 +10,9 @@ from fedoicmsg import CONTEXTS
 from fedoicmsg import MIN_SET
 from fedoicmsg.file_system import FileSystem
 
-from jwkest import as_unicode
-from jwkest.jws import JWSException
-from jwkest.jws import factory
+from cryptojwt import as_unicode
+from cryptojwt.jws import JWSException
+from cryptojwt.jws import factory
 
 from oicmsg.oauth2 import Message
 from oicmsg.jwt import JWT
@@ -80,7 +80,7 @@ class InternalSigningService(SigningService):
         if self.add_ons:
             _metadata.update(self.add_ons)
 
-        _jwt = JWT(keyjar, iss=iss, msgtype=_metadata.__class__,
+        _jwt = JWT(keyjar, iss=iss, msg_cls=_metadata.__class__,
                    lifetime=self.lifetime)
         _jwt.sign_alg = self.alg
 
@@ -90,9 +90,9 @@ class InternalSigningService(SigningService):
             owner = ''
 
         if kwargs:
-            return _jwt.pack(cls_instance=_metadata, owner=owner, **kwargs)
+            return _jwt.pack(payload=_metadata.to_dict(), owner=owner, **kwargs)
         else:
-            return _jwt.pack(cls_instance=_metadata, owner=owner)
+            return _jwt.pack(payload=_metadata.to_dict(), owner=owner)
 
     def name(self):
         return self.iss

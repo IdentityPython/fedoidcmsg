@@ -10,11 +10,11 @@ from fedoicmsg.bundle import JWKSBundle
 from fedoicmsg.bundle import verify_signed_bundle
 from fedoicmsg.operator import Operator
 from fedoicmsg.operator import le_dict
-from jwkest import jws
+from cryptojwt import jws
 
 from oicmsg.exception import MissingSigningKey
 from oicmsg.oauth2 import Message
-from oicmsg.key_jar import KeyJar
+from oicmsg.key_jar import KeyJar, public_keys_keyjar
 from oicmsg.key_jar import build_keyjar
 
 BASE_PATH = os.path.abspath(
@@ -54,6 +54,16 @@ LIGOOP = OPERATOR['ligo']
 OPOP = OPERATOR['ligo']
 
 
+def public_jwks_bundle(jwks_bundle):
+    jb_copy = JWKSBundle('')
+    for fo, kj in jwks_bundle.bundle.items():
+        kj_copy = KeyJar()
+        for owner in kj.owners():
+            public_keys_keyjar(kj, owner, kj_copy, owner)
+        jb_copy.bundle[fo] = kj_copy
+    return jb_copy
+
+
 def fo_member(*args):
     _jb = JWKSBundle('https://sunet.se/op')
     for fo in args:
@@ -66,7 +76,7 @@ def test_create_metadata_statement_simple():
     ms = MetadataStatement(signing_keys=KEYS['org']['jwks'])
 
     assert ms
-    sig_keys=json.loads(ms['signing_keys'])
+    sig_keys=ms['signing_keys']
     assert len(sig_keys['keys']) == 2
 
 
@@ -93,10 +103,12 @@ def test_pack_and_unpack_ms_lev0():
     json_ms = unfurl(_jwt)
     #  print(json_ms.keys())
     assert set(json_ms.keys()) == {'signing_keys', 'iss', 'iat', 'exp',
-                                   'kid', 'scope', 'contacts', 'jti'}
+                                   'kid', 'scope', 'contacts'}
 
     # Unpack what you have packed
-    pr = FOP.unpack_metadata_statement(jwt_ms=_jwt)
+    _kj = public_keys_keyjar(FOP.keyjar, '', None, FOP.iss)
+    op = Operator(_kj, jwks_bundle=public_jwks_bundle(FOP.jwks_bundle))
+    pr = op.unpack_metadata_statement(jwt_ms=_jwt)
 
     assert pr.result
 
@@ -511,10 +523,7 @@ def test_create_verify_fo_keys_bundle():
     jb[FO1P.iss] = FO1P.keyjar
     sb = jb.create_signed_bundle()
 
-    kj = ORGOP.keyjar.copy()
-
-    # Necessary since otherwise it won't find the key
-    kj.issuer_keys[ORGOP.iss] = kj.issuer_keys['']
+    kj = public_keys_keyjar(ORGOP.keyjar, '', None, ORGOP.iss)
 
     _jwt = verify_signed_bundle(sb, kj)
     bundle = _jwt["bundle"]

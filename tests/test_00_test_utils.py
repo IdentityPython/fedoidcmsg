@@ -9,7 +9,7 @@ from fedoicmsg.test_utils import make_jwks_bundle
 from fedoicmsg.test_utils import make_ms
 from fedoicmsg.test_utils import make_signed_metadata_statement
 from fedoicmsg.test_utils import unpack_using_metadata_store
-from jwkest.jws import factory
+from cryptojwt.jws import factory
 
 from oicmsg.key_jar import KeyJar
 from oicmsg.key_jar import build_keyjar
@@ -117,12 +117,12 @@ def test_make_signed_metadata_statements():
 
     _spec = SMS_DEF[OA['sunet']]["discovery"][FO['edugain']]
     res = make_signed_metadata_statement(_spec, operator, mds=mds,
-                                        base_uri='https:/example.org/ms')
+                                         base_uri='https:/example.org/ms')
     assert list(res['ms_uri'].keys()) == [FO['edugain']]
 
     _spec = SMS_DEF[OA['sunet']]["discovery"][FO['example']]
     res = make_signed_metadata_statement(_spec, operator, mds=mds,
-                                        base_uri='https:/example.org/ms')
+                                         base_uri='https:/example.org/ms')
     assert list(res['ms'].keys()) == [FO['example']]
     _jws = factory(res['ms'][FO['example']])
     assert _jws
@@ -163,13 +163,13 @@ def test_make_signed_metadata_statement_mixed():
     mds = MetaDataStore('mds')
     mds.clear()
     sms = make_signed_metadata_statement(_spec, operator, mds=mds,
-                                        base_uri='https:/example.org/ms')
+                                         base_uri='https:/example.org/ms')
     assert sms
 
     _spec = SMS_DEF[OA['sunet']]["discovery"][FO['edugain']]
 
     sms = make_signed_metadata_statement(_spec, operator, mds=mds,
-                                        base_uri='https:/example.org/ms')
+                                         base_uri='https:/example.org/ms')
     assert list(sms['ms_uri'].keys()) == [FO['edugain']]
 
     # Now parse the result
@@ -178,7 +178,7 @@ def test_make_signed_metadata_statement_mixed():
 
     op = Operator()
     _res = op.evaluate_metadata_statement(_md0)
-    assert _res[0].le =={'federation_usage':'discovery'}
+    assert _res[0].le == {'federation_usage': 'discovery'}
 
 
 def test_setup_ms():

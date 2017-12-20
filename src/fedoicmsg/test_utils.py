@@ -17,7 +17,7 @@ from fedoicmsg.operator import Operator
 from fedoicmsg.signing_service import InternalSigningService
 from fedoicmsg.signing_service import Signer
 
-from jwkest import as_bytes
+from cryptojwt import as_bytes
 
 from oicmsg.key_jar import KeyJar
 from oicmsg.key_jar import build_keyjar
@@ -30,7 +30,7 @@ def make_fs_jwks_bundle(iss, fo_liss, sign_keyjar, keydefs, base_path=''):
 
     :param iss: The issuer ID of the entity owning the JWKSBundle
     :param fo_liss: List with federation identifiers as keys
-    :param sign_keyjar: Keys that the JWKSBundel owner can use to sign
+    :param sign_keyjar: Keys that the JWKSBundle owner can use to sign
         an export version of the JWKS bundle.
     :param keydefs: What type of keys that should be created for each
         federation. The same for all of them.
@@ -54,7 +54,7 @@ def make_fs_jwks_bundle(iss, fo_liss, sign_keyjar, keydefs, base_path=''):
             _keydef = copy.deepcopy(keydefs)
             _keydef[0]['key'] = fname
 
-            _jwks, _keyjar, _kidd = build_keyjar(_keydef)
+            _keyjar = build_keyjar(_keydef)[1]
             jb[entity] = _keyjar
 
     return jb
@@ -201,6 +201,7 @@ def make_signed_metadata_statements(smsdef, operator, mds_dir='', base_uri=''):
 
 
 def init(keydefs, tool_iss, liss, lifetime):
+    # The FOs signing keys
     sig_keys = build_keyjar(keydefs)[1]
     key_bundle = make_fs_jwks_bundle(tool_iss, liss, sig_keys, keydefs, './')
 
@@ -209,6 +210,7 @@ def init(keydefs, tool_iss, liss, lifetime):
     operator = {}
 
     for entity, _keyjar in key_bundle.items():
+        _keyjar[''] = _keyjar[entity]
         operator[entity] = Operator(iss=entity, keyjar=_keyjar,
                                     lifetime=lifetime)
 
