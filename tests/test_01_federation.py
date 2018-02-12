@@ -103,7 +103,7 @@ def test_pack_and_unpack_ms_lev0():
     json_ms = unfurl(_jwt)
     #  print(json_ms.keys())
     assert set(json_ms.keys()) == {'signing_keys', 'iss', 'iat', 'exp',
-                                   'kid', 'scope', 'contacts'}
+                                   'kid', 'scope', 'contacts', 'aud'}
 
     # Unpack what you have packed
     _kj = public_keys_keyjar(FOP.keyjar, '', None, FOP.iss)

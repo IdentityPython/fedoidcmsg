@@ -135,7 +135,7 @@ def make_ms(desc, leaf, operator, sup=None):
     req.update(desc['signer_add'])
 
     if leaf:
-        jwt_args = {'aud': [_requester.iss]}
+        jwt_args = {'recv': _requester.iss}
     else:
         jwt_args = {}
 

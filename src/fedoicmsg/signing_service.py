@@ -33,7 +33,7 @@ class SigningService(object):
         self.add_ons = add_ons or {}
         self.alg = alg
 
-    def __call__(self, req, **kwargs):
+    def create(self, req, **kwargs):
         raise NotImplemented()
 
     def name(self):
@@ -61,7 +61,7 @@ class InternalSigningService(SigningService):
         self.iss = iss
         self.lifetime = lifetime
 
-    def __call__(self, req, **kwargs):
+    def create(self, req, **kwargs):
         """
 
         :param req: Original metadata statement as a 
@@ -70,7 +70,7 @@ class InternalSigningService(SigningService):
         :param iss: Issuer ID
         :param alg: Which signing algorithm to use
         :param kwargs: Additional metadata statement attribute values
-        :return: A JWT
+        :return: A dictionary with a signed JWT as value with the key 'sms'
         """
         iss = self.iss
         keyjar = self.signing_keys
@@ -90,21 +90,24 @@ class InternalSigningService(SigningService):
             owner = ''
 
         if kwargs:
-            return _jwt.pack(payload=_metadata.to_dict(), owner=owner, **kwargs)
+            sms = _jwt.pack(payload=_metadata.to_dict(), owner=owner, **kwargs)
         else:
-            return _jwt.pack(payload=_metadata.to_dict(), owner=owner)
+            sms = _jwt.pack(payload=_metadata.to_dict(), owner=owner)
+
+        return {'sms': sms}
 
     def name(self):
         return self.iss
 
 
-class WebSigningService(SigningService):
+class WebSigningServiceClient(SigningService):
     """
     A client to a web base signing service.
     Uses HTTP Post to send the MetadataStatement to the service.
     """
 
-    def __init__(self, iss, url, keyjar, add_ons=None, alg='RS256'):
+    def __init__(self, iss, url, keyjar, add_ons=None, alg='RS256', token='',
+                 token_type='Bearer', verify_ssl_cert=True):
         """
 
         :param iss: The issuer ID of the signer
@@ -118,11 +121,13 @@ class WebSigningService(SigningService):
         self.url = url
         self.iss = iss
         self.keyjar = keyjar
+        self.token = token
+        self.token_type = token_type
+        self.verify_ssl_cert = verify_ssl_cert
 
-    def __call__(self, req, **kwargs):
-        r = requests.post(self.url, json=req, verify=False)
-        if 200 <= r.status_code < 300:
-            _jw = factory(r.text)
+    def parse_response(self, response):
+        if 200 <= response.status_code < 300:
+            _jw = factory(response.text)
 
             # First Just checking the issuer ID *not* verifying the Signature
             body = json.loads(as_unicode(_jw.jwt.part[1]))
@@ -130,23 +135,68 @@ class WebSigningService(SigningService):
 
             # Now verifying the signature
             try:
-                _jw.verify_compact(r.text,
+                _jw.verify_compact(response.text,
                                    self.keyjar.get_verify_key(
                                        owner=self.iss))
             except AssertionError:
                 raise JWSException('JWS signature verification error')
 
-            return r.text
+            location = response.headers['Location']
+
+            return {'sms': response.text, 'loc': location}
         else:
-            raise SigningServiceError("{}: {}".format(r.status_code, r.text))
+            raise SigningServiceError("{}: {}".format(response.status_code,
+                                                      response.text))
+
+    def req_args(self):
+        if self.token:
+            _args = {'verify':self.verify_ssl_cert,
+                        'auth': '{} {}'.format(self.token_type, self.token)}
+        else:
+            _args = {'verify':self.verify_ssl_cert}
+        return _args
+
+    def create(self, req, **kwargs):
+        """
+        Uses POST to send a first metadata statement signing request to
+        a signing service.
+
+        :param req: The metadata statement that the entity wants signed
+        :return: returns a dictionary with 'sms' and 'loc' as keys.
+        """
+
+        response = requests.post(self.url, json=req, **self.req_args())
+        return self.parse_response(response)
 
     def name(self):
         return self.url
 
+    def update_metadata_statement(self, location, req):
+        """
+        Uses PUT to update an earlier accepted and signed metadata statement.
+
+        :param location: A URL to which the update request is sent
+        :param req: The diff between what is registereed with the signing
+            service and what it should be.
+        :return: returns a dictionary with 'sms' and 'loc' as keys.
+        """
+        response = requests.put(location, json=req, **self.req_args())
+        return self.parse_response(response)
+
+    def update_signature(self, location):
+        """
+        Uses GET to get a newly signed metadata statement.
+
+        :param location: A URL to which the request is sent
+        :return: returns a dictionary with 'sms' and 'loc' as keys.
+        """
+        response = requests.get(location, **self.req_args())
+        return self.parse_response(response)
+
 
 class Signer(object):
     """
-    A signer. Has no or one signing services it can use.
+    A signer. Has one signing services it can use.
     Keeps a dictionary with the created signed metadata statements.
     """
 
@@ -243,8 +293,8 @@ class Signer(object):
                                                 'discovery': {},
                                                 'response': {}}:
                     # No superior so an FO then.
-                    _sms = self.signing_service(req)
-                    return {self.signing_service.iss: _sms}
+                    _res = self.signing_service.create(req)
+                    return {self.signing_service.iss: _res['sms']}
 
                 try:
                     logger.error(
@@ -260,8 +310,8 @@ class Signer(object):
             else:
                 if cms == {}:
                     # No superior so a FO then.
-                    _sms = self.signing_service(req)
-                    return {self.signing_service.iss: _sms}
+                    _res = self.signing_service.create(req)
+                    return {self.signing_service.iss: _res['sms']}
 
                 if fos is None:
                     fos = list(cms.keys())
@@ -284,7 +334,7 @@ class Signer(object):
                             except KeyError:
                                 req['metadata_statements'] = {f: val}
 
-                    _sms = self.signing_service(req)
+                    _sms = self.signing_service.create(req)['sms']
                 else:
                     _sms = {}
                     for f in fos:
@@ -295,11 +345,11 @@ class Signer(object):
 
                         if val.startswith('http'):
                             req['metadata_statement_uris'] = {f: val}
-                            _sms[f] = self.signing_service(req)
+                            _sms[f] = self.signing_service.create(req)['sms']
                             del req['metadata_statement_uris']
                         else:
                             req['metadata_statements'] = {f: val}
-                            _sms[f] = self.signing_service(req)
+                            _sms[f] = self.signing_service.create(req)['sms']
                             del req['metadata_statements']
 
                 if fos and not _sms:
