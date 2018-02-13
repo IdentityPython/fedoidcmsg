@@ -61,14 +61,12 @@ class InternalSigningService(SigningService):
         self.iss = iss
         self.lifetime = lifetime
 
-    def create(self, req, **kwargs):
+    def create(self, req, receiver='', **kwargs):
         """
 
         :param req: Original metadata statement as a 
             :py:class:`MetadataStatement` instance
-        :param keyjar: KeyJar in which the necessary keys should reside
-        :param iss: Issuer ID
-        :param alg: Which signing algorithm to use
+        :param receiver: The intended audience for the JWS
         :param kwargs: Additional metadata statement attribute values
         :return: A dictionary with a signed JWT as value with the key 'sms'
         """
@@ -90,9 +88,11 @@ class InternalSigningService(SigningService):
             owner = ''
 
         if kwargs:
-            sms = _jwt.pack(payload=_metadata.to_dict(), owner=owner, **kwargs)
+            sms = _jwt.pack(payload=_metadata.to_dict(), owner=owner,
+                            recv=receiver, **kwargs)
         else:
-            sms = _jwt.pack(payload=_metadata.to_dict(), owner=owner)
+            sms = _jwt.pack(payload=_metadata.to_dict(), owner=owner,
+                            recv=receiver)
 
         return {'sms': sms}
 
@@ -106,12 +106,13 @@ class WebSigningServiceClient(SigningService):
     Uses HTTP Post to send the MetadataStatement to the service.
     """
 
-    def __init__(self, iss, url, keyjar, add_ons=None, alg='RS256', token='',
-                 token_type='Bearer', verify_ssl_cert=True):
+    def __init__(self, iss, url, id, keyjar, add_ons=None, alg='RS256',
+                 token='', token_type='Bearer', verify_ssl_cert=True):
         """
 
         :param iss: The issuer ID of the signer
         :param url: The URL of the signing service
+        :param id: The identifier of this entity
         :param keyjar: A keyjar containing the public part of the signers key
         :param add_ons: Additional information the signing service must 
             add to the Metadata statement before signing it.
@@ -120,6 +121,7 @@ class WebSigningServiceClient(SigningService):
         SigningService.__init__(self, add_ons=add_ons, alg=alg)
         self.url = url
         self.iss = iss
+        self.id = id
         self.keyjar = keyjar
         self.token = token
         self.token_type = token_type
@@ -131,7 +133,7 @@ class WebSigningServiceClient(SigningService):
 
             # First Just checking the issuer ID *not* verifying the Signature
             body = json.loads(as_unicode(_jw.jwt.part[1]))
-            assert body['iss'] == self.iss
+            assert self.id in body['aud']
 
             # Now verifying the signature
             try:
@@ -151,7 +153,7 @@ class WebSigningServiceClient(SigningService):
     def req_args(self):
         if self.token:
             _args = {'verify':self.verify_ssl_cert,
-                        'auth': '{} {}'.format(self.token_type, self.token)}
+                     'auth': '{} {}'.format(self.token_type, self.token)}
         else:
             _args = {'verify':self.verify_ssl_cert}
         return _args
