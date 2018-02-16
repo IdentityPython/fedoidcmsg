@@ -62,11 +62,14 @@ setup(
         "Topic :: Software Development :: Libraries :: Python Modules"],
     install_requires=[
          'oicmsg',
-         "Cherrypy",
+         "CherryPy",
          'cherrypy-cors >= 1.5'],
+    dependency_links = [
+         "https://github.com/IdentityPython/oicmsg/tarball/master#egg=oicmsg"],
     zip_safe=False,
     cmdclass={'test': PyTest},
     tests_require=[
         "pytest",
+        "future"
     ]
 )
