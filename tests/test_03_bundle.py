@@ -1,7 +1,7 @@
-from fedoicmsg.bundle import JWKSBundle
+from fedoidcmsg.bundle import JWKSBundle
 
-from oicmsg.key_jar import build_keyjar
-from oicmsg.key_jar import public_keys_keyjar
+from oidcmsg.key_jar import build_keyjar
+from oidcmsg.key_jar import public_keys_keyjar
 
 ISS = 'https://example.com'
 ISS2 = 'https://example.org'

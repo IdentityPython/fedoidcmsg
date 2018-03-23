@@ -1,21 +1,21 @@
 import json
 import os
 
-from fedoicmsg import ClientMetadataStatement
-from fedoicmsg import MetadataStatement
-from fedoicmsg import ProviderConfigurationResponse
-from fedoicmsg import is_lesser
-from fedoicmsg import unfurl
-from fedoicmsg.bundle import JWKSBundle
-from fedoicmsg.bundle import verify_signed_bundle
-from fedoicmsg.operator import Operator
-from fedoicmsg.operator import le_dict
+from fedoidcmsg import ClientMetadataStatement
+from fedoidcmsg import MetadataStatement
+from fedoidcmsg import ProviderConfigurationResponse
+from fedoidcmsg import is_lesser
+from fedoidcmsg import unfurl
+from fedoidcmsg.bundle import JWKSBundle
+from fedoidcmsg.bundle import verify_signed_bundle
+from fedoidcmsg.operator import Operator
+from fedoidcmsg.operator import le_dict
 from cryptojwt import jws
 
-from oicmsg.exception import MissingSigningKey
-from oicmsg.oauth2 import Message
-from oicmsg.key_jar import KeyJar, public_keys_keyjar
-from oicmsg.key_jar import build_keyjar
+from oidcmsg.exception import MissingSigningKey
+from oidcmsg.oauth2 import Message
+from oidcmsg.key_jar import KeyJar, public_keys_keyjar
+from oidcmsg.key_jar import build_keyjar
 
 BASE_PATH = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "data/keys"))

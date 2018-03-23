@@ -1,7 +1,7 @@
 import shutil
 
-from fedoicmsg import MetadataStatement
-from fedoicmsg import test_utils
+from fedoidcmsg import MetadataStatement
+from fedoidcmsg import test_utils
 
 KEYDEFS = [
     {"type": "RSA", "key": '', "use": ["sig"]},

@@ -1,11 +1,11 @@
 import os
 
-from fedoicmsg.bundle import JWKSBundle
-from fedoicmsg.bundle import verify_signed_bundle
-from fedoicmsg.test_utils import make_jwks_bundle
+from fedoidcmsg.bundle import JWKSBundle
+from fedoidcmsg.bundle import verify_signed_bundle
+from fedoidcmsg.test_utils import make_jwks_bundle
 
-from oicmsg.key_jar import KeyJar
-from oicmsg.key_jar import build_keyjar
+from oidcmsg.key_jar import KeyJar
+from oidcmsg.key_jar import build_keyjar
 
 BASE_PATH = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "data/keys"))

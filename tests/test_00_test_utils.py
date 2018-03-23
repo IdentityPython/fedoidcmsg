@@ -1,18 +1,18 @@
 import os
 import shutil
 
-from fedoicmsg import test_utils
-from fedoicmsg.operator import Operator
-from fedoicmsg.test_utils import MetaDataStore
-from fedoicmsg.test_utils import make_fs_jwks_bundle
-from fedoicmsg.test_utils import make_jwks_bundle
-from fedoicmsg.test_utils import make_ms
-from fedoicmsg.test_utils import make_signed_metadata_statement
-from fedoicmsg.test_utils import unpack_using_metadata_store
+from fedoidcmsg import test_utils
+from fedoidcmsg.operator import Operator
+from fedoidcmsg.test_utils import MetaDataStore
+from fedoidcmsg.test_utils import make_fs_jwks_bundle
+from fedoidcmsg.test_utils import make_jwks_bundle
+from fedoidcmsg.test_utils import make_ms
+from fedoidcmsg.test_utils import make_signed_metadata_statement
+from fedoidcmsg.test_utils import unpack_using_metadata_store
 from cryptojwt.jws import factory
 
-from oicmsg.key_jar import KeyJar
-from oicmsg.key_jar import build_keyjar
+from oidcmsg.key_jar import KeyJar
+from oidcmsg.key_jar import build_keyjar
 
 TEST_ISS = "https://test.example.com"
 KEYDEFS = [

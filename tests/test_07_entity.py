@@ -1,14 +1,14 @@
-from fedoicmsg import MetadataStatement
-from fedoicmsg.bundle import JWKSBundle
-from fedoicmsg.entity import FederationEntity
-from fedoicmsg.operator import Operator
-from fedoicmsg.signing_service import InternalSigningService
-from fedoicmsg.signing_service import Signer
+from fedoidcmsg import MetadataStatement
+from fedoidcmsg.bundle import JWKSBundle
+from fedoidcmsg.entity import FederationEntity
+from fedoidcmsg.operator import Operator
+from fedoidcmsg.signing_service import InternalSigningService
+from fedoidcmsg.signing_service import Signer
 
-from oicmsg.oauth2 import Message
-from oicmsg.key_jar import build_keyjar
-from oicmsg.key_jar import KeyJar
-from oicmsg.key_jar import public_keys_keyjar
+from oidcmsg.oauth2 import Message
+from oidcmsg.key_jar import build_keyjar
+from oidcmsg.key_jar import KeyJar
+from oidcmsg.key_jar import public_keys_keyjar
 
 KEYDEFS = [
     {"type": "RSA", "key": '', "use": ["sig"]},
