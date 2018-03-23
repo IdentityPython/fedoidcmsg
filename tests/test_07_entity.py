@@ -15,6 +15,7 @@ KEYDEFS = [
     {"type": "EC", "crv": "P-256", "use": ["sig"]}
 ]
 
+
 def public_jwks_bundle(jwks_bundle):
     jb_copy = JWKSBundle('')
     for fo, kj in jwks_bundle.bundle.items():
