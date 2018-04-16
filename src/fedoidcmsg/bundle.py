@@ -12,17 +12,17 @@ from fedoidcmsg.file_system import FileSystem
 class JWKSBundle(object):
     """
     A class to keep a number of signing keys from different issuers.
-    Behaves as a dictionary with issuer IDs as keys and oidcmsg.key_jar.KeyJar
-    instances as values.
+    Behaves as a dictionary with issuer IDs as keys and
+    :py:class:`oidcmsg.key_jar.KeyJar` instances as values.
     """
 
     def __init__(self, iss, sign_keys=None):
         """
 
         :param iss: Issuer identifier, will be used as the value of 'iss'
-        when a signed JWT containg the bundle is constructed
+            when a signed JWT containg the bundle is constructed.
         :param sign_keys: Keys that this entity can use to sign JWTs.
-        :type sign_keys: oidc.utils.KeyJar instance
+        :type sign_keys: py:class:`oidcmsg.key_jar.KeyJar` instance
         """
         self.iss = iss
         self.sign_keys = sign_keys
@@ -30,6 +30,7 @@ class JWKSBundle(object):
 
     def __setitem__(self, key, value):
         """
+        Add a set of keys, as a KeyJar or a JWKS under an issuer ID
 
         :param key: issuer ID
         :type: String
@@ -84,7 +85,7 @@ class JWKSBundle(object):
     def create_signed_bundle(self, sign_alg='RS256', iss_list=None):
         """
         Create a signed JWT containing a dictionary with Issuer IDs as keys
-        and JWKSs as values. If iss_list is empty all then all issuers are 
+        and JWKSs as values. If iss_list is empty then all available issuers are
         included.
         
         :param sign_alg: Which algorithm to use when signing the JWT
@@ -119,7 +120,7 @@ class JWKSBundle(object):
     def dumps(self, iss_list=None):
         """
         Dumps a bundle of keys into a string. If iss_list is empty then all
-        issuers are included
+        available issuers are included
         
         :param iss_list: List of issuers who's keys should be dumped
         :return: A JSON document
@@ -131,7 +132,7 @@ class JWKSBundle(object):
 
     def keys(self):
         """
-        Return a list of all issuers there are keys for in this bundle.
+        Return a list of all issuers kept in this bundle.
         
         :return: List of Issuer IDs
         """
@@ -143,7 +144,7 @@ class JWKSBundle(object):
     def dict(self, iss_list=None):
         """
         Return the bundle of keys as a dictionary with the issuer IDs as
-        the keys.
+        the keys and the key sets represented as JWKS instances.
         
         :param iss_list: List of Issuer IDs that should be part of the 
          output

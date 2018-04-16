@@ -18,7 +18,7 @@ from oidcmsg.oidc import RegistrationRequest
 logger = logging.getLogger(__name__)
 
 __author__ = 'roland'
-__version__ = '0.5.2a0'
+__version__ = '0.5.3'
 
 #: Contexts in which metadata statements can be used
 CONTEXTS = ['registration', 'discovery', 'response']
@@ -36,7 +36,7 @@ class NoSuitableFederation(MetadataStatementError):
 
 class MetadataStatement(JsonWebToken):
     """
-    A base class for metadata statements
+    A base class for metadata statements based on JSON web token
     """
     c_param = JsonWebToken.c_param.copy()
     c_param.update({
@@ -50,8 +50,11 @@ class MetadataStatement(JsonWebToken):
 
     def verify(self, **kwargs):
         """
-        Verifies that an instance of this class adhers to the given 
-            restrictions.
+        Verifies that an instance of this class adheres to the given
+        restrictions.
+
+        :param kwargs: A set of keyword arguments
+        :return: True if it verifies OK otherwise False.
         """
         super(MetadataStatement, self).verify(**kwargs)
         if "signing_keys" in self:
@@ -117,7 +120,7 @@ def keyjar_from_metadata_statements(iss, msl):
     
     :param iss: Owner of the signing keys 
     :param msl: List of :py:class:`MetadataStatement` instances.
-    :return: A oidc.utils.keyio.KeyJar instance
+    :return: A :py:class:`oidcmsg.key_jar.KeyJar` instance
     """
     keyjar = KeyJar()
     for ms in msl:
@@ -127,11 +130,11 @@ def keyjar_from_metadata_statements(iss, msl):
 
 def read_jwks_file(jwks_file):
     """
-    Reads a file containing a JWKS and populates a oidc.utils.keyio.KeyJar from
-    it.
+    Reads a file containing a JWKS and populates a
+    :py:class:`oidcmsg.key_jar.KeyJar` from it.
 
     :param jwks_file: file name of the JWKS file 
-    :return: A oidc.utils.keyio.KeyJar instance
+    :return: A :py:class:`oidcmsg.key_jar.KeyJar` instance
     """
     _jwks = open(jwks_file, 'r').read()
     _kj = KeyJar()
@@ -141,7 +144,7 @@ def read_jwks_file(jwks_file):
 
 def is_lesser(a, b):
     """
-    Verify that a is <= then b
+    Verify that an item *a* is <= then an item *b*
     
     :param a: An item
     :param b: Another item
@@ -187,19 +190,24 @@ IgnoreKeys = list(JsonWebToken.c_param.keys())
 DoNotCompare = list(
     set(MetadataStatement.c_param.keys()).difference(IgnoreKeys))
 DoNotCompare.append('kid')
-# These 2 should definitely not be modifiedQ
+
+# These 2 should definitely not be modified
 DoNotCompare.remove('signed_jwks_uri')
 DoNotCompare.remove('federation_usage')
 
 
 class KeyBundle(key_bundle.KeyBundle):
+    """
+    Extended :py:class:`oidcmsg.key_bundle.KeyBundle` class that supports
+    signed JWKS uris.
+    """
     def __init__(self, keys=None, source="", cache_time=300, verify_ssl=True,
-            fileformat="jwk", keytype="RSA", keyusage=None,
-            verify_keys=None):
+                 file_format="jwk", keytype="RSA", keyusage=None,
+                 verify_keys=None):
         super(KeyBundle, self).__init__(keys=keys, source=source,
                                         cache_time=cache_time,
                                         verify_ssl=verify_ssl,
-                                        fileformat=fileformat,
+                                        fileformat=file_format,
                                         keytype=keytype, keyusage=keyusage)
         if verify_keys is not None:
             if isinstance(verify_keys, KeyJar):
@@ -214,7 +222,7 @@ class KeyBundle(key_bundle.KeyBundle):
 
         :param response: HTTP response from the 'jwks_uri' or 'signed_jwks_uri'
             endpoint
-        :return: response parsed as JSON
+        :return: response parsed as JSON or None
         """
         # Check if the content type is the right one.
         try:
@@ -225,7 +233,7 @@ class KeyBundle(key_bundle.KeyBundle):
                     return json.loads(response.text)
                 except ValueError:
                     return None
-            elif response.headers["Content-Type"] == 'application/jose':
+            elif response.headers["Content-Type"] == 'application/jwt':
                 logger.debug(
                     "Signed JWKS: %s from %s" % (response.text, self.source))
                 _jws = factory(response.text)
@@ -235,6 +243,6 @@ class KeyBundle(key_bundle.KeyBundle):
             else:
                 logger.error('Wrong content type: {}'.format(
                     response.headers['Content-Type']))
-                return None
+                raise ValueError('Content-type mismatch')
         except KeyError:
             pass
