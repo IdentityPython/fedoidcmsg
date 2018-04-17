@@ -93,12 +93,17 @@ class ClientMetadataStatement(MetadataStatement):
     })
 
 
-class ProviderConfigurationResponse(oidc.ProviderConfigurationResponse):
+class ProviderConfigurationResponse(oidc.ProviderConfigurationResponse,
+                                    MetadataStatement):
     """
     A Provider info metadata statement
     """
     c_param = MetadataStatement.c_param.copy()
     c_param.update(oidc.ProviderConfigurationResponse.c_param.copy())
+
+    def verify(self, **kwargs):
+        ProviderConfigurationResponse.verify(self, **kwargs)
+        MetadataStatement.verify(self, **kwargs)
 
 
 def unfurl(jwt):

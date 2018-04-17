@@ -1,14 +1,14 @@
 import shutil
 
 from cryptojwt.jws import factory
-from oicmsg.key_jar import KeyJar
-from oicmsg.oic import RegistrationRequest
+from oidcmsg.key_jar import KeyJar
+from oidcmsg.oidc import RegistrationRequest
 
-from fedoicmsg.signing_service import InternalSigningService, \
-    WebSigningServiceClient
+from fedoidcmsg import MetadataStatement
+from fedoidcmsg import test_utils
+from fedoidcmsg.signing_service import InternalSigningService
+from fedoidcmsg.signing_service import WebSigningServiceClient
 
-from fedoicmsg import MetadataStatement
-from fedoicmsg import test_utils
 
 KEYDEFS = [
     {"type": "RSA", "key": '', "use": ["sig"]},
