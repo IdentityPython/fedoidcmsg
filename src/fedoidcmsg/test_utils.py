@@ -153,7 +153,7 @@ def make_signed_metadata_statement(ms_chain, operator, mds=None, base_uri=''):
     :param operator: 
     :param mds:
     :param base_uri;
-    :return: 
+    :return: xyz
     """
     _sup = {}
     depth = len(ms_chain)
