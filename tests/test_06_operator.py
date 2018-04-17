@@ -6,17 +6,17 @@ from urllib.parse import quote_plus
 from urllib.parse import unquote_plus
 from urllib.parse import urlparse
 
-from fedoicmsg import MetadataStatement
-from fedoicmsg import test_utils
-from fedoicmsg.bundle import FSJWKSBundle, JWKSBundle
-from fedoicmsg.operator import FederationOperator
-from fedoicmsg.operator import Operator
-from fedoicmsg.test_utils import MetaDataStore
+from fedoidcmsg import MetadataStatement
+from fedoidcmsg import test_utils
+from fedoidcmsg.bundle import FSJWKSBundle, JWKSBundle
+from fedoidcmsg.operator import FederationOperator
+from fedoidcmsg.operator import Operator
+from fedoidcmsg.test_utils import MetaDataStore
 from cryptojwt import as_unicode
 from cryptojwt.jws import factory
 
-from oicmsg.key_jar import build_keyjar, KeyJar
-from oicmsg.key_jar import public_keys_keyjar
+from oidcmsg.key_jar import build_keyjar, KeyJar
+from oidcmsg.key_jar import public_keys_keyjar
 
 KEYDEFS = [
     {"type": "RSA", "key": '', "use": ["sig"]},

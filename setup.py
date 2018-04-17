@@ -36,22 +36,19 @@ class PyTest(TestCommand):
         sys.exit(errno)
 
 
-version = ''
-
-
-with open('src/fedoicmsg/__init__.py', 'r') as fd:
+with open('src/fedoidcmsg/__init__.py', 'r') as fd:
     version = re.search(r'^__version__\s*=\s*[\'"]([^\'"]*)[\'"]',
                         fd.read(), re.MULTILINE).group(1)
 
 setup(
-    name="fedoicmsg",
+    name="fedoidcmsg",
     version=version,
     description="Python implementation of the OpenID Connect federation draft",
     author="Roland Hedberg",
     author_email="roland@catalogix.se",
     license="Apache 2.0",
-    url='https://github.com/IdentityPython/fedoicmsg',
-    packages=["fedoicmsg"],
+    url='https://github.com/IdentityPython/fedoidcmsg',
+    packages=["fedoidcmsg"],
     package_dir={"": "src"},
     classifiers=[
         "Development Status :: 4 - Beta",
@@ -61,11 +58,12 @@ setup(
         "Programming Language :: Python :: 3.6",
         "Topic :: Software Development :: Libraries :: Python Modules"],
     install_requires=[
-         'oicmsg',
+         'cryptojwt',
+         'oidcmsg',
          "CherryPy",
          'cherrypy-cors >= 1.5'],
     dependency_links = [
-         "https://github.com/IdentityPython/oicmsg/tarball/master#egg=oicmsg"],
+         "https://github.com/IdentityPython/oidcmsg/tarball/master#egg=oidcmsg"],
     zip_safe=False,
     cmdclass={'test': PyTest},
     tests_require=[

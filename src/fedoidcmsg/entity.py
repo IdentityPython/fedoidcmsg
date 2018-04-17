@@ -1,8 +1,8 @@
 import logging
 import re
 
-from fedoicmsg import MetadataStatement
-from fedoicmsg.operator import Operator
+from fedoidcmsg import MetadataStatement
+from fedoidcmsg.operator import Operator
 
 __author__ = 'roland'
 

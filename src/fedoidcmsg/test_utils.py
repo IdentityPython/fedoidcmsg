@@ -6,21 +6,21 @@ from urllib.parse import quote_plus
 from urllib.parse import unquote_plus
 from urllib.parse import urlparse
 
-from fedoicmsg import MetadataStatement
-from fedoicmsg import unfurl
-from fedoicmsg.bundle import FSJWKSBundle
-from fedoicmsg.bundle import JWKSBundle
-from fedoicmsg.bundle import keyjar_to_jwks_private
-from fedoicmsg.entity import FederationEntity
-from fedoicmsg.file_system import FileSystem
-from fedoicmsg.operator import Operator
-from fedoicmsg.signing_service import InternalSigningService
-from fedoicmsg.signing_service import Signer
+from fedoidcmsg import MetadataStatement
+from fedoidcmsg import unfurl
+from fedoidcmsg.bundle import FSJWKSBundle
+from fedoidcmsg.bundle import JWKSBundle
+from fedoidcmsg.bundle import keyjar_to_jwks_private
+from fedoidcmsg.entity import FederationEntity
+from fedoidcmsg.file_system import FileSystem
+from fedoidcmsg.operator import Operator
+from fedoidcmsg.signing_service import InternalSigningService
+from fedoidcmsg.signing_service import Signer
 
 from cryptojwt import as_bytes
 
-from oicmsg.key_jar import KeyJar
-from oicmsg.key_jar import build_keyjar
+from oidcmsg.key_jar import KeyJar
+from oidcmsg.key_jar import build_keyjar
 
 
 def make_fs_jwks_bundle(iss, fo_liss, sign_keyjar, keydefs, base_path=''):

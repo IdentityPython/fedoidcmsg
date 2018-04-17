@@ -1,14 +1,14 @@
 import json
 
-from fedoicmsg import MetadataStatement
-from fedoicmsg.bundle import jwks_to_keyjar
-from fedoicmsg.utils import request_signed_by_signing_keys
-from fedoicmsg.utils import self_sign_jwks
-from fedoicmsg.utils import verify_request_signed_by_signing_keys
-from fedoicmsg.utils import verify_self_signed_jwks
+from fedoidcmsg import MetadataStatement
+from fedoidcmsg.bundle import jwks_to_keyjar
+from fedoidcmsg.utils import request_signed_by_signing_keys
+from fedoidcmsg.utils import self_sign_jwks
+from fedoidcmsg.utils import verify_request_signed_by_signing_keys
+from fedoidcmsg.utils import verify_self_signed_jwks
 
-from oicmsg.key_jar import KeyJar
-from oicmsg.key_jar import build_keyjar
+from oidcmsg.key_jar import KeyJar
+from oidcmsg.key_jar import build_keyjar
 
 KEYDEFS = [
     {"type": "RSA", "use": ["sig"]},

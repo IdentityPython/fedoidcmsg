@@ -3,20 +3,21 @@ import json
 import logging
 import time
 
-from fedoicmsg import ClientMetadataStatement
-from fedoicmsg import DoNotCompare
-from fedoicmsg import IgnoreKeys
-from fedoicmsg import MetadataStatementError
-from fedoicmsg import is_lesser
-from fedoicmsg import unfurl
 from cryptojwt.exception import BadSignature
 from cryptojwt.jws import JWSException
 
-from oicmsg.exception import MissingSigningKey
-from oicmsg.oauth2 import Message
-from oicmsg.jwt import JWT
-from oicmsg.key_jar import build_keyjar
-from oicmsg.time_util import utc_time_sans_frac
+from fedoidcmsg import ClientMetadataStatement
+from fedoidcmsg import DoNotCompare
+from fedoidcmsg import IgnoreKeys
+from fedoidcmsg import MetadataStatementError
+from fedoidcmsg import is_lesser
+from fedoidcmsg import unfurl
+
+from oidcmsg.exception import MissingSigningKey
+from oidcmsg.oauth2 import Message
+from oidcmsg.jwt import JWT
+from oidcmsg.key_jar import build_keyjar
+from oidcmsg.time_util import utc_time_sans_frac
 
 __author__ = 'roland'
 

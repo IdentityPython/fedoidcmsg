@@ -2,7 +2,7 @@ import os
 import shutil
 from time import sleep
 
-from fedoicmsg.file_system import FileSystem
+from fedoidcmsg.file_system import FileSystem
 
 ROOT = 'test_dir'
 

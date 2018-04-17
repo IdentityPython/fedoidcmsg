@@ -2,17 +2,17 @@
 import json
 import os
 
-from oicmsg.jwt import JWT
-from oicmsg.key_jar import KeyJar
-from oicmsg.key_jar import build_keyjar
+from oidcmsg.jwt import JWT
+from oidcmsg.key_jar import KeyJar
+from oidcmsg.key_jar import build_keyjar
 
-from fedoicmsg.file_system import FileSystem
+from fedoidcmsg.file_system import FileSystem
 
 
 class JWKSBundle(object):
     """
     A class to keep a number of signing keys from different issuers.
-    Behaves as a dictionary with issuer IDs as keys and oic.utils.keyio.KeyJar
+    Behaves as a dictionary with issuer IDs as keys and oidcmsg.key_jar.KeyJar
     instances as values.
     """
 
@@ -22,7 +22,7 @@ class JWKSBundle(object):
         :param iss: Issuer identifier, will be used as the value of 'iss'
         when a signed JWT containg the bundle is constructed
         :param sign_keys: Keys that this entity can use to sign JWTs.
-        :type sign_keys: oic.utils.KeyJar instance
+        :type sign_keys: oidc.utils.KeyJar instance
         """
         self.iss = iss
         self.sign_keys = sign_keys
@@ -176,7 +176,7 @@ class JWKSBundle(object):
         """
         Convert a key bundle into a KeyJar instance.
         
-        :return: An :py:class:`oic.utils.keyio.KeyJar` instance 
+        :return: An :py:class:`oidcmsg.key_jar.KeyJar` instance 
         """
         kj = KeyJar()
         for iss, k in self.bundle.items():
@@ -194,7 +194,7 @@ def verify_signed_bundle(signed_bundle, ver_keys):
     :param signed_bundle: A signed JWT where the body is a JWKS bundle
     :param ver_keys: Keys that can be used to verify signatures of the
         signed_bundle.
-    :type ver_keys: oic.utils.KeyJar instance
+    :type ver_keys: A :py:class:`oidcmsg.key_jar.KeyJar` instance
     :return: The bundle or None
     """
     _jwt = JWT(ver_keys)
@@ -225,7 +225,7 @@ def get_signing_keys(eid, keydef, key_file):
     :param eid: The ID of the entity that the keys belongs to
     :param keydef: What keys to create
     :param key_file: A file name
-    :return: A :py:class:`oic.utils.keyio.KeyJar` instance
+    :return: A :py:class:`oidcmsg.key_jar.KeyJar` instance
     """
     if os.path.isfile(key_file):
         kj = KeyJar()
@@ -246,7 +246,7 @@ def jwks_to_keyjar(jwks, iss=''):
     Convert a JWKS to a KeyJar instance.
 
     :param jwks: String representation of a JWKS
-    :return: A :py:class:`oic.utils.keyio.KeyJar` instance
+    :return: A :py:class:`oidcmsg.key_jar.KeyJar` instance
     """
     if not isinstance(jwks, dict):
         try:
@@ -274,7 +274,7 @@ def keyjar_to_jwks(keyjar):
     """
     Convert a KeyJar instance to a JWKS (JSON document).
     
-    :param keyjar: A :py:class:`oic.utils.keyio.KeyJar` instance
+    :param keyjar: A :py:class:`oidcmsg.key_jar.KeyJar` instance
     """
     return k_to_j(keyjar)
 
@@ -284,7 +284,7 @@ def keyjar_to_jwks_private(keyjar):
     Convert a KeyJar instance to a JWKS (JSON document).
     Including the private key.
     
-    :param keyjar: A :py:class:`oic.utils.keyio.KeyJar` instance
+    :param keyjar: A :py:class:`oidcmsg.key_jar.KeyJar` instance
     """
     return k_to_j(keyjar, private=True)
 

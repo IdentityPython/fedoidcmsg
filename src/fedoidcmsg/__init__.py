@@ -3,17 +3,17 @@ import logging
 
 from cryptojwt.jws import factory
 
-from oicmsg import key_bundle
-from oicmsg import oic
+from oidcmsg import key_bundle
+from oidcmsg import oidc
 
-from oicmsg.exception import VerificationError
-from oicmsg.key_jar import KeyJar
-from oicmsg.message import OPTIONAL_LIST_OF_STRINGS
-from oicmsg.message import SINGLE_OPTIONAL_STRING
-from oicmsg.message import SINGLE_OPTIONAL_JSON
-from oicmsg.oic import JsonWebToken
-from oicmsg.oic import OPTIONAL_MESSAGE
-from oicmsg.oic import RegistrationRequest
+from oidcmsg.exception import VerificationError
+from oidcmsg.key_jar import KeyJar
+from oidcmsg.message import OPTIONAL_LIST_OF_STRINGS
+from oidcmsg.message import SINGLE_OPTIONAL_STRING
+from oidcmsg.message import SINGLE_OPTIONAL_JSON
+from oidcmsg.oidc import JsonWebToken
+from oidcmsg.oidc import OPTIONAL_MESSAGE
+from oidcmsg.oidc import RegistrationRequest
 
 logger = logging.getLogger(__name__)
 
@@ -90,12 +90,12 @@ class ClientMetadataStatement(MetadataStatement):
     })
 
 
-class ProviderConfigurationResponse(oic.ProviderConfigurationResponse):
+class ProviderConfigurationResponse(oidc.ProviderConfigurationResponse):
     """
     A Provider info metadata statement
     """
     c_param = MetadataStatement.c_param.copy()
-    c_param.update(oic.ProviderConfigurationResponse.c_param.copy())
+    c_param.update(oidc.ProviderConfigurationResponse.c_param.copy())
 
 
 def unfurl(jwt):
@@ -117,7 +117,7 @@ def keyjar_from_metadata_statements(iss, msl):
     
     :param iss: Owner of the signing keys 
     :param msl: List of :py:class:`MetadataStatement` instances.
-    :return: A oic.utils.keyio.KeyJar instance
+    :return: A oidc.utils.keyio.KeyJar instance
     """
     keyjar = KeyJar()
     for ms in msl:
@@ -127,11 +127,11 @@ def keyjar_from_metadata_statements(iss, msl):
 
 def read_jwks_file(jwks_file):
     """
-    Reads a file containing a JWKS and populates a oic.utils.keyio.KeyJar from
+    Reads a file containing a JWKS and populates a oidc.utils.keyio.KeyJar from
     it.
 
     :param jwks_file: file name of the JWKS file 
-    :return: A oic.utils.keyio.KeyJar instance
+    :return: A oidc.utils.keyio.KeyJar instance
     """
     _jwks = open(jwks_file, 'r').read()
     _kj = KeyJar()

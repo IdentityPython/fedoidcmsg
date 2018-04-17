@@ -2,20 +2,21 @@ import copy
 import json
 import logging
 import os
+import requests
+
 from urllib.parse import quote_plus
 from urllib.parse import unquote_plus
-
-import requests
-from fedoicmsg import CONTEXTS
-from fedoicmsg import MIN_SET
-from fedoicmsg.file_system import FileSystem
 
 from cryptojwt import as_unicode
 from cryptojwt.jws import JWSException
 from cryptojwt.jws import factory
 
-from oicmsg.oauth2 import Message
-from oicmsg.jwt import JWT
+from fedoidcmsg import CONTEXTS
+from fedoidcmsg import MIN_SET
+from fedoidcmsg.file_system import FileSystem
+
+from oidcmsg.oauth2 import Message
+from oidcmsg.jwt import JWT
 
 logger = logging.getLogger(__name__)
 
