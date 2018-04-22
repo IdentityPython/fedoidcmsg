@@ -7,8 +7,8 @@ from oidcmsg.oidc import RegistrationRequest
 from fedoidcmsg import MetadataStatement
 from fedoidcmsg import test_utils
 from fedoidcmsg.signing_service import InternalSigningService
+from fedoidcmsg.signing_service import make_signing_service
 from fedoidcmsg.signing_service import WebSigningServiceClient
-
 
 KEYDEFS = [
     {"type": "RSA", "key": '', "use": ["sig"]},
@@ -57,6 +57,36 @@ class Response(object):
         self.status_code = status_code
         self.text = text
         self.headers = headers
+
+
+def test_make_internal_signing_service():
+    config = {
+        'type': 'internal',
+        'private_path': './private_jwks',
+        'key_defs': KEYDEFS,
+        'public_path': './public_jwks'
+    }
+    signing_service = make_signing_service(config, 'https://example.com')
+    assert signing_service.iss == 'https://example.com'
+    assert len(signing_service.signing_keys.issuer_keys['']) == 1
+    assert len(signing_service.signing_keys.issuer_keys[''][0]) == 2
+
+
+def test_make_web_signing_service():
+    config = {
+        'type': 'web',
+        'public_path': './public_jwks',
+        'iss': 'https://example.com/mdss',
+        'url': 'https://example.com/mdss'
+    }
+    signing_service = make_signing_service(config, 'https://example.com')
+    assert signing_service.id == 'https://example.com'
+    assert signing_service.iss == 'https://example.com/mdss'
+    assert signing_service.url == 'https://example.com/mdss'
+    assert len(signing_service.keyjar.issuer_keys[
+                   'https://example.com/mdss']) == 1
+    assert len(signing_service.keyjar.issuer_keys[
+                   'https://example.com/mdss'][0]) == 2
 
 
 def test_internal_signing_service():

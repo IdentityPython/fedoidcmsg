@@ -10,6 +10,7 @@ from urllib.parse import unquote_plus
 from cryptojwt import as_unicode
 from cryptojwt.jws import JWSException
 from cryptojwt.jws import factory
+from oidcmsg.key_jar import init_key_jar
 
 from fedoidcmsg import CONTEXTS
 from fedoidcmsg import MIN_SET
@@ -47,7 +48,7 @@ class InternalSigningService(SigningService):
     """
 
     def __init__(self, iss, signing_keys, add_ons=None, alg='RS256',
-                 lifetime=3600):
+            lifetime=3600):
         """
         
         :param iss: The ID for this entity 
@@ -108,13 +109,13 @@ class WebSigningServiceClient(SigningService):
     """
 
     def __init__(self, iss, url, id, keyjar, add_ons=None, alg='RS256',
-                 token='', token_type='Bearer', verify_ssl_cert=True):
+            token='', token_type='Bearer', verify_ssl_cert=True):
         """
 
         :param iss: The issuer ID of the signer
         :param url: The URL of the signing service
         :param id: The identifier of this entity
-        :param keyjar: A keyjar containing the public part of the signers key
+        :param keyjar: A key jar containing the public part of the signers key
         :param add_ons: Additional information the signing service must 
             add to the Metadata statement before signing it.
         :param alg: Signing algorithm 
@@ -153,10 +154,10 @@ class WebSigningServiceClient(SigningService):
 
     def req_args(self):
         if self.token:
-            _args = {'verify':self.verify_ssl_cert,
+            _args = {'verify': self.verify_ssl_cert,
                      'auth': '{} {}'.format(self.token_type, self.token)}
         else:
-            _args = {'verify':self.verify_ssl_cert}
+            _args = {'verify': self.verify_ssl_cert}
         return _args
 
     def create(self, req, **kwargs):
@@ -211,7 +212,7 @@ class Signer(object):
             are kept. Storing/retrieving the signed metadata statements are
             handled by :py:class:`fedoidc.file_system.FileSystem` instances.
             One per operations where they are expected to used.
-        :param def_context: Default operation, one out of 
+        :param def_context: Default context, one out of
             :py:data:`fedoidc.CONTEXTS`
         """
 
@@ -265,7 +266,7 @@ class Signer(object):
             return []
 
     def create_signed_metadata_statement(self, req, context='', fos=None,
-                                         single=False):
+            single=False):
         """
         Gathers the metadata statements adds them to the request and signs
         the whole document.
@@ -412,3 +413,46 @@ class Signer(object):
                             _res[attr][f] = val
 
         return _res
+
+
+KJ_SPECS = ['private_path', 'key_defs', 'public_path']
+
+
+def make_signing_service(config, entity_id):
+    """
+    Given configuration initiate a SigningService instance
+
+    :param config: The signing service configuration
+    :return: A SigningService instance
+    """
+
+    _args = dict([(k,v) for k,v in config.items() if k in KJ_SPECS])
+    _kj = init_key_jar(**_args)
+
+    if config['type'] == 'internal':
+        signer = InternalSigningService(entity_id, _kj)
+    elif config['type'] == 'web':
+        _kj.issuer_keys[config['iss']] = _kj.issuer_keys['']
+        del _kj.issuer_keys['']
+        signer = WebSigningServiceClient(config['iss'], config['url'],
+                                         entity_id, _kj)
+    else:
+        raise ValueError('Unknown signer type: {}'.format(config['type']))
+
+    return signer
+
+
+def make_signer(config, entity_id):
+    signing_service = make_signing_service(config['signing_service'],
+                                           entity_id)
+
+    if not os.path.isdir(config['ms_dir']):
+        os.makedirs(config['ms_dir'])
+
+    signer = Signer(signing_service, config['ms_dir'])
+    try:
+        signer.def_context = config['def_context']
+    except KeyError:
+        pass
+
+    return signer

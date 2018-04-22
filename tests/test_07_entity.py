@@ -1,6 +1,7 @@
 from fedoidcmsg import MetadataStatement
 from fedoidcmsg.bundle import JWKSBundle
 from fedoidcmsg.entity import FederationEntity
+from fedoidcmsg.entity import make_federation_entity
 from fedoidcmsg.operator import Operator
 from fedoidcmsg.signing_service import InternalSigningService
 from fedoidcmsg.signing_service import Signer
@@ -60,3 +61,32 @@ def test_ace():
 
     assert 'metadata_statements' in req
     assert 'signing_keys' not in req
+
+
+def test_make_federation_entity():
+    config = {
+        'signer': {
+            'signing_service':{
+                'type': 'internal',
+                'private_path': './private_jwks',
+                'key_defs': KEYDEFS,
+                'public_path': './public_jwks'
+            },
+            'ms_dir': 'ms_dir'
+        },
+        'fo_bundle': {
+            'private_path': './fo_bundle_signing_keys',
+            'key_defs': KEYDEFS,
+            'public_path': './pub_fo_bundle_signing_keys'
+        },
+        'private_path': './entity_keys',
+        'key_defs': KEYDEFS,
+        'public_path': './pub_entity_keys'
+    }
+
+    fe = make_federation_entity(config, 'https://op.example.com')
+    assert fe
+    assert isinstance(fe.signer, Signer)
+    assert isinstance(fe.jwks_bundle, JWKSBundle)
+    assert fe.iss == 'https://op.example.com'
+    assert fe.signer.signing_service.iss == 'https://op.example.com'

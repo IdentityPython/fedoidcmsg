@@ -1,5 +1,14 @@
 import logging
 import re
+from urllib.parse import quote_plus
+from urllib.parse import unquote_plus
+
+from fedoidcmsg.bundle import FSJWKSBundle
+from fedoidcmsg.bundle import JWKSBundle
+from oidcmsg.key_jar import init_key_jar
+
+from fedoidcmsg.signing_service import KJ_SPECS
+from fedoidcmsg.signing_service import make_signer
 
 from fedoidcmsg import MetadataStatement
 from fedoidcmsg.operator import Operator
@@ -181,3 +190,27 @@ class FederationEntity(Operator):
             return self.signer.metadata_statements[context]
         else:
             return self.signer.metadata_statements[context][fo]
+
+
+def make_federation_entity(config, eid, httpcli=None):
+    if 'signer' in config:
+        signer = make_signer(config['signer'], eid)
+    else:
+        signer = None
+
+    bundle_cnf = config['fo_bundle']
+    _args = dict([(k,v) for k,v in bundle_cnf.items() if k in KJ_SPECS])
+    _kj = init_key_jar(**_args)
+
+    if 'dir' in bundle_cnf:
+        jb = FSJWKSBundle(eid, _kj, 'fo_jwks',
+                          key_conv={'to': quote_plus, 'from': unquote_plus})
+    else:
+        jb = JWKSBundle(eid, _kj)
+
+    # the federation entity key jar
+    _args = dict([(k,v) for k,v in config.items() if k in KJ_SPECS])
+    _kj = init_key_jar(**_args)
+
+    return FederationEntity(httpcli, iss=eid, keyjar=_kj, signer=signer,
+                            fo_bundle=jb)
