@@ -69,6 +69,10 @@ def test_dumps_loads():
 
     _str = bundle.dumps()
 
+    fp = open('bundle.json', 'w')
+    fp.write(_str)
+    fp.close()
+
     bundle2 = JWKSBundle(ISS, SIGN_KEYS)
     bundle2.loads(_str)
 

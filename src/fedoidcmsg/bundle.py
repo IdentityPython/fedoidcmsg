@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 import json
 import os
+from urllib.parse import quote_plus, unquote_plus
 
+from fedoidcmsg.signing_service import KJ_SPECS
 from oidcmsg.jwt import JWT
-from oidcmsg.key_jar import KeyJar
+from oidcmsg.key_jar import KeyJar, init_key_jar
 from oidcmsg.key_jar import build_keyjar
 
 from fedoidcmsg.file_system import FileSystem
@@ -312,3 +314,21 @@ class FSJWKSBundle(JWKSBundle):
 
     def clear(self):
         self.bundle.clear()
+
+
+def make_jwks_bundle(config, eid):
+    _args = dict([(k,v) for k,v in config.items() if k in KJ_SPECS])
+    _kj = init_key_jar(**_args)
+
+    if 'dir' in config:
+        jb = FSJWKSBundle(eid, _kj, 'fo_jwks',
+                          key_conv={'to': quote_plus, 'from': unquote_plus})
+    else:
+        jb = JWKSBundle(eid, _kj)
+        if 'bundle' in config:
+            jb.loads(open(config['bundle']).read())
+        elif 'signed_bundle' in config:
+            _kj = jwks_to_keyjar(open(config['verification_keys']).read())
+            jb.upload_signed_bundle(open(config['signed_bundle']).read(),
+                                    _kj)
+    return jb

@@ -77,7 +77,8 @@ def test_make_federation_entity():
         'fo_bundle': {
             'private_path': './fo_bundle_signing_keys',
             'key_defs': KEYDEFS,
-            'public_path': './pub_fo_bundle_signing_keys'
+            'public_path': './pub_fo_bundle_signing_keys',
+            'bundle': 'bundle.json'
         },
         'private_path': './entity_keys',
         'key_defs': KEYDEFS,
