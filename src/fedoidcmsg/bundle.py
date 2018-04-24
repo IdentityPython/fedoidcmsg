@@ -42,7 +42,10 @@ class JWKSBundle(object):
         """
         if not isinstance(value, KeyJar):
             kj = KeyJar()
-            kj.import_jwks(value, issuer=key)
+            if isinstance(value, dict):
+                kj.import_jwks(value, issuer=key)
+            else:
+                kj.import_jwks_as_json(value, issuer=key)
             value = kj
         else:
             _val = value.copy()
@@ -321,7 +324,7 @@ def make_jwks_bundle(config, eid):
     _kj = init_key_jar(**_args)
 
     if 'dir' in config:
-        jb = FSJWKSBundle(eid, _kj, 'fo_jwks',
+        jb = FSJWKSBundle(eid, _kj, config['dir'],
                           key_conv={'to': quote_plus, 'from': unquote_plus})
     else:
         jb = JWKSBundle(eid, _kj)
