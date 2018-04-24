@@ -446,10 +446,27 @@ def make_signer(config, entity_id):
     signing_service = make_signing_service(config['signing_service'],
                                            entity_id)
 
-    if not os.path.isdir(config['ms_dir']):
-        os.makedirs(config['ms_dir'])
+    try:
+        sms_dir = config['ms_dir']
+    except KeyError:
+        msd = None
+    else:
+        if not os.path.isdir(sms_dir):
+            os.makedirs(sms_dir)
 
-    signer = Signer(signing_service, config['ms_dir'])
+        try:
+            _ctx = config['contexts']
+        except KeyError:
+            _ctx = ['registration', 'discovery', 'response']
+
+        msd = {}
+        for _c in _ctx:
+            _path = os.path.join(sms_dir, _c)
+            if not os.path.isdir(_path):
+                os.mkdir(_path)
+            msd[_c] = _path
+
+    signer = Signer(signing_service, msd)
     try:
         signer.def_context = config['def_context']
     except KeyError:

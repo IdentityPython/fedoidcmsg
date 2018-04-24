@@ -37,7 +37,6 @@ class FileSystem(object):
         if not os.path.isdir(fdir):
             os.makedirs(fdir)
 
-
     def __getitem__(self, item):
         """
         Return the value bound to an identifier.
@@ -175,7 +174,7 @@ class FileSystem(object):
         """
         if not os.path.isdir(self.fdir):
             os.makedirs(self.fdir)
-            #raise ValueError('No such directory: {}'.format(self.fdir))
+
         for f in os.listdir(self.fdir):
             fname = os.path.join(self.fdir, f)
             if not os.path.isfile(fname):
