@@ -34,6 +34,10 @@ class NoSuitableFederation(MetadataStatementError):
     pass
 
 
+class NoTrustedClaims(MetadataStatementError):
+    pass
+
+
 class MetadataStatement(JsonWebToken):
     """
     A base class for metadata statements based on JSON web token
