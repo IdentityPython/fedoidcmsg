@@ -3,15 +3,14 @@ import re
 from urllib.parse import quote_plus
 from urllib.parse import unquote_plus
 
+from fedoidcmsg import MetadataStatement
 from fedoidcmsg.bundle import FSJWKSBundle
 from fedoidcmsg.bundle import JWKSBundle
-from oidcmsg.key_jar import init_key_jar
-
+from fedoidcmsg.operator import Operator
 from fedoidcmsg.signing_service import KJ_SPECS
 from fedoidcmsg.signing_service import make_signer
 
-from fedoidcmsg import MetadataStatement
-from fedoidcmsg.operator import Operator
+from oidcmsg.key_jar import init_key_jar
 
 __author__ = 'roland'
 
@@ -203,7 +202,7 @@ def make_federation_entity(config, eid, httpcli=None):
     _kj = init_key_jar(**_args)
 
     if 'dir' in bundle_cnf:
-        jb = FSJWKSBundle(eid, _kj, 'fo_jwks',
+        jb = FSJWKSBundle(eid, _kj, config['dir'],
                           key_conv={'to': quote_plus, 'from': unquote_plus})
     else:
         jb = JWKSBundle(eid, _kj)
