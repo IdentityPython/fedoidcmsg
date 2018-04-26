@@ -106,7 +106,7 @@ class ProviderConfigurationResponse(oidc.ProviderConfigurationResponse,
     c_param.update(oidc.ProviderConfigurationResponse.c_param.copy())
 
     def verify(self, **kwargs):
-        ProviderConfigurationResponse.verify(self, **kwargs)
+        oidc.ProviderConfigurationResponse.verify(self, **kwargs)
         MetadataStatement.verify(self, **kwargs)
 
 

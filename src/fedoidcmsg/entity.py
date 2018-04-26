@@ -199,10 +199,13 @@ def make_federation_entity(config, eid, httpcli=None):
 
     bundle_cnf = config['fo_bundle']
     _args = dict([(k,v) for k,v in bundle_cnf.items() if k in KJ_SPECS])
-    _kj = init_key_jar(**_args)
+    if _args:
+        _kj = init_key_jar(**_args)
+    else:
+        _kj = None
 
     if 'dir' in bundle_cnf:
-        jb = FSJWKSBundle(eid, _kj, config['dir'],
+        jb = FSJWKSBundle(eid, _kj, bundle_cnf['dir'],
                           key_conv={'to': quote_plus, 'from': unquote_plus})
     else:
         jb = JWKSBundle(eid, _kj)
