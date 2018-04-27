@@ -107,7 +107,7 @@ class ProviderConfigurationResponse(oidc.ProviderConfigurationResponse,
 
     def verify(self, **kwargs):
         oidc.ProviderConfigurationResponse.verify(self, **kwargs)
-        MetadataStatement.verify(self, **kwargs)
+        return MetadataStatement.verify(self, **kwargs)
 
 
 def unfurl(jwt):
