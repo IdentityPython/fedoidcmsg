@@ -1,3 +1,4 @@
+import json
 import logging
 import re
 from urllib.parse import quote_plus
@@ -22,20 +23,21 @@ class FederationEntity(Operator):
     An entity in a federation. For instance an OP or an RP.
     """
 
-    def __init__(self, srv, iss='', keyjar=None, signer=None, fo_bundle=None):
+    def __init__(self, srv, iss='', signer=None, self_signer=None,
+                 fo_bundle=None):
         """
 
         :param srv: A Client or Provider instance
         :param iss: A identifier assigned to this entity by the operator
-        :param keyjar: Key this entity can use to sign things
-        :param signer: A dsigner to use for signing documents
+        :param self_signer: Signer this entity can use to sign things
+        :param signer: A signer to use for signing documents
             (client registration requests/provide info response) this
             entity produces.
         :param fo_bundle: A bundle of keys that can be used to verify
             the root signature of a compounded metadata statement.
         """
 
-        Operator.__init__(self, iss=iss, keyjar=keyjar, httpcli=srv,
+        Operator.__init__(self, self_signer=self_signer, iss=iss, httpcli=srv,
                           jwks_bundle=fo_bundle)
 
         # Who can sign request from this entity
@@ -127,7 +129,7 @@ class FederationEntity(Operator):
         :param statement: Metadata statement to be extended
         :return: The extended statement
         """
-        statement['signing_keys'] = self.signing_keys_as_jwks_json()
+        statement['signing_keys'] = self.self_signer.signing_keys_as_jwks_json()
         return statement
 
     def update_request(self, req, federation='', loes=None):
@@ -211,8 +213,7 @@ def make_federation_entity(config, eid, httpcli=None):
         jb = JWKSBundle(eid, _kj)
 
     # the federation entity key jar
-    _args = dict([(k,v) for k,v in config.items() if k in KJ_SPECS])
-    _kj = init_key_jar(**_args)
+    # _args = dict([(k,v) for k,v in config.items() if k in KJ_SPECS])
+    # _kj = init_key_jar(**_args)
 
-    return FederationEntity(httpcli, iss=eid, keyjar=_kj, signer=signer,
-                            fo_bundle=jb)
+    return FederationEntity(httpcli, iss=eid, signer=signer, fo_bundle=jb)

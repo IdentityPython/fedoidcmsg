@@ -211,7 +211,8 @@ def init(keydefs, tool_iss, liss, lifetime):
 
     for entity, _keyjar in key_bundle.items():
         _keyjar[''] = _keyjar[entity]
-        operator[entity] = Operator(iss=entity, keyjar=_keyjar,
+        self_signer = InternalSigningService(entity, _keyjar)
+        operator[entity] = Operator(iss=entity, self_signer=self_signer,
                                     lifetime=lifetime)
 
     return {'operator': operator, 'key_bundle': key_bundle}
@@ -255,8 +256,7 @@ def setup_ms(csms_def, ms_path, mds_dir, base_url, operators):
     signers = {}
     for iss, sms_def in csms_def.items():
         ms_dir = os.path.join(ms_path, quote_plus(iss))
-        signers[iss] = Signer(
-            InternalSigningService(iss, operators[iss].keyjar), ms_dir)
+        signers[iss] = Signer(operators[iss].self_signer, ms_dir)
 
     return signers
 
@@ -306,8 +306,9 @@ def create_federation_entity(iss, jwks_dir, sup='', fo_jwks=None, ms_dir='',
     if sig_keys is None:
         sig_keys = build_keyjar(sig_def_keys)[1]
 
-    return FederationEntity(entity, iss=iss, keyjar=sig_keys, signer=signer,
-                            fo_bundle=_public_keybundle)
+    self_signer = InternalSigningService(iss, sig_keys)
+    return FederationEntity(entity, iss=iss, self_signer=self_signer,
+                            signer=signer, fo_bundle=_public_keybundle)
 
 
 class MetaDataStore(FileSystem):

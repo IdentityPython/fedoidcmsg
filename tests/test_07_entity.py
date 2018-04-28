@@ -14,7 +14,7 @@ from oidcmsg.key_jar import public_keys_keyjar
 KEYDEFS = [
     {"type": "RSA", "key": '', "use": ["sig"]},
     {"type": "EC", "crv": "P-256", "use": ["sig"]}
-]
+    ]
 
 
 def public_jwks_bundle(jwks_bundle):
@@ -32,7 +32,9 @@ def test_get_metadata_statement():
     for iss in ['https://example.org/', 'https://example.com/']:
         jb[iss] = build_keyjar(KEYDEFS)[1]
 
-    op = Operator(keyjar=jb['https://example.com/'], iss='https://example.com/')
+    self_signer = InternalSigningService(keyjar=jb['https://example.com/'],
+                                         iss='https://example.com/')
+    op = Operator(self_signer=self_signer, iss='https://example.com/')
     req = MetadataStatement(foo='bar')
     sms = op.pack_metadata_statement(req, alg='RS256')
     sms_dir = {'https://example.com': sms}
@@ -49,12 +51,13 @@ def test_ace():
     kj = build_keyjar(KEYDEFS)[1]
 
     sign_serv = InternalSigningService('https://signer.example.com',
-                                       signing_keys=kj)
+                                       keyjar=kj)
     signer = Signer(sign_serv)
     signer.metadata_statements['response'] = {
-        'https://example.org/': 'https://example.org/sms1'}
+        'https://example.org/': 'https://example.org/sms1'
+    }
 
-    ent = FederationEntity(None, keyjar=kj, signer=signer,
+    ent = FederationEntity(None, self_signer=sign_serv, signer=signer,
                            fo_bundle=public_jwks_bundle(jb))
     req = MetadataStatement(foo='bar')
     ent.ace(req, ['https://example.org/'], 'response')
@@ -66,24 +69,24 @@ def test_ace():
 def test_make_federation_entity():
     config = {
         'signer': {
-            'signing_service':{
+            'signing_service': {
                 'type': 'internal',
                 'private_path': './private_jwks',
                 'key_defs': KEYDEFS,
                 'public_path': './public_jwks'
-            },
+                },
             'ms_dir': 'ms_dir'
-        },
+            },
         'fo_bundle': {
             'private_path': './fo_bundle_signing_keys',
             'key_defs': KEYDEFS,
             'public_path': './pub_fo_bundle_signing_keys',
             'bundle': 'bundle.json'
-        },
+            },
         'private_path': './entity_keys',
         'key_defs': KEYDEFS,
         'public_path': './pub_entity_keys'
-    }
+        }
 
     fe = make_federation_entity(config, 'https://op.example.com')
     assert fe

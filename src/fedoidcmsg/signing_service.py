@@ -2,6 +2,8 @@ import copy
 import json
 import logging
 import os
+import time
+
 import requests
 
 from urllib.parse import quote_plus
@@ -10,7 +12,7 @@ from urllib.parse import unquote_plus
 from cryptojwt import as_unicode
 from cryptojwt.jws import JWSException
 from cryptojwt.jws import factory
-from oidcmsg.key_jar import init_key_jar
+from oidcmsg.key_jar import init_key_jar, build_keyjar
 
 from fedoidcmsg import CONTEXTS
 from fedoidcmsg import MIN_SET
@@ -47,21 +49,23 @@ class InternalSigningService(SigningService):
     A signing service that is internal to an entity
     """
 
-    def __init__(self, iss, signing_keys, add_ons=None, alg='RS256',
-            lifetime=3600):
+    def __init__(self, iss, keyjar, add_ons=None, alg='RS256',
+            lifetime=3600, keyconf=None, remove_after=86400):
         """
         
         :param iss: The ID for this entity 
-        :param signing_keys: Signing keys this entity can use to sign JWTs with.
+        :param keyjar: Signing keys this entity can use to sign JWTs with.
         :param add_ons: Additional information the signing service must 
             add to the Metadata statement before signing it.
         :param alg: The signing algorithm
         :param lifetime: The lifetime of the signed JWT
         """
         SigningService.__init__(self, add_ons=add_ons, alg=alg)
-        self.signing_keys = signing_keys
+        self.keyjar = keyjar
         self.iss = iss
         self.lifetime = lifetime
+        self.keyconf = keyconf
+        self.remove_after = remove_after
 
     def create(self, req, receiver='', **kwargs):
         """
@@ -73,7 +77,7 @@ class InternalSigningService(SigningService):
         :return: A dictionary with a signed JWT as value with the key 'sms'
         """
         iss = self.iss
-        keyjar = self.signing_keys
+        keyjar = self.keyjar
 
         # Own copy
         _metadata = copy.deepcopy(req)
@@ -100,6 +104,35 @@ class InternalSigningService(SigningService):
 
     def name(self):
         return self.iss
+
+    def public_keys(self):
+        return self.keyjar.export_jwks()
+
+    def rotate_keys(self, keyconf=None):
+        _old = [k.kid for k in self.keyjar.get_issuer_keys('') if k.kid]
+
+        if keyconf:
+            self.keyjar = build_keyjar(keyconf, keyjar=self.keyjar)[1]
+        elif self.keyconf:
+            self.keyjar = build_keyjar(self.keyconf, keyjar=self.keyjar)[1]
+        else:
+            logger.info("QWas asked to rotate key but could not comply")
+            return
+
+        self.keyjar.remove_after = self.remove_after
+        self.keyjar.remove_outdated()
+
+        _now = time.time()
+        for k in self.keyjar.get_issuer_keys(''):
+            if k.kid in _old:
+                if not k.inactive_since:
+                    k.inactive_since = _now
+
+    def export_jwks(self):
+        return self.keyjar.export_jwks()
+
+    def export_jwks_as_json(self):
+        return self.keyjar.export_jwks_as_json()
 
 
 class WebSigningServiceClient(SigningService):

@@ -68,8 +68,8 @@ def test_make_internal_signing_service():
     }
     signing_service = make_signing_service(config, 'https://example.com')
     assert signing_service.iss == 'https://example.com'
-    assert len(signing_service.signing_keys.issuer_keys['']) == 1
-    assert len(signing_service.signing_keys.issuer_keys[''][0]) == 2
+    assert len(signing_service.keyjar.issuer_keys['']) == 1
+    assert len(signing_service.keyjar.issuer_keys[''][0]) == 2
 
 
 def test_make_web_signing_service():

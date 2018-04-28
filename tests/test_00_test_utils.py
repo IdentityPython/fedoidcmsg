@@ -1,6 +1,8 @@
 import os
 import shutil
 
+from fedoidcmsg.signing_service import InternalSigningService
+
 from fedoidcmsg import test_utils
 from fedoidcmsg.operator import Operator
 from fedoidcmsg.test_utils import MetaDataStore
@@ -108,7 +110,8 @@ def test_make_signed_metadata_statements():
     operator = {}
 
     for entity, _keyjar in key_bundle.items():
-        operator[entity] = Operator(iss=entity, keyjar=_keyjar)
+        self_signer = InternalSigningService(entity, _keyjar)
+        operator[entity] = Operator(iss=entity, self_signer=self_signer)
 
     _spec = SMS_DEF[OA['sunet']]["discovery"][FO['swamid']]
     ms = make_signed_metadata_statement(_spec, operator, mds=mds,
@@ -139,7 +142,8 @@ def test_metadatastore():
 
     key_bundle = make_fs_jwks_bundle(TEST_ISS, liss, SIGN_KEYJAR, KEYDEFS, './')
     for entity, _keyjar in key_bundle.items():
-        operator[entity] = Operator(iss=entity, keyjar=_keyjar)
+        self_signer = InternalSigningService(entity, _keyjar)
+        operator[entity] = Operator(iss=entity, self_signer=self_signer)
 
     _x = make_ms(desc, False, operator)
     _jws = list(_x.values())[0]
@@ -157,7 +161,8 @@ def test_make_signed_metadata_statement_mixed():
     operator = {}
 
     for entity, _keyjar in key_bundle.items():
-        operator[entity] = Operator(iss=entity, keyjar=_keyjar)
+        self_signer = InternalSigningService(entity, _keyjar)
+        operator[entity] = Operator(iss=entity, self_signer=self_signer)
 
     _spec = SMS_DEF[OA['sunet']]["discovery"][FO['swamid']]
     mds = MetaDataStore('mds')

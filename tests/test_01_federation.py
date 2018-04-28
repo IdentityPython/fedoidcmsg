@@ -1,6 +1,7 @@
 import json
 import os
 
+
 from fedoidcmsg import ClientMetadataStatement
 from fedoidcmsg import MetadataStatement
 from fedoidcmsg import ProviderConfigurationResponse
@@ -10,6 +11,8 @@ from fedoidcmsg.bundle import JWKSBundle
 from fedoidcmsg.bundle import verify_signed_bundle
 from fedoidcmsg.operator import Operator
 from fedoidcmsg.operator import le_dict
+from fedoidcmsg.signing_service import InternalSigningService
+
 from cryptojwt import jws
 
 from oidcmsg.exception import MissingSigningKey
@@ -37,15 +40,16 @@ for entity in ['fo', 'fo1', 'org', 'inter', 'admin', 'ligo', 'op']:
     _jwks, _keyjar, _kidd = build_keyjar(_keydef)
     KEYS[entity] = {'jwks': json.dumps(_jwks), 'keyjar': _keyjar, 'kidd': _kidd}
     ISSUER[entity] = 'https://{}.example.org'.format(entity)
-    OPERATOR[entity] = Operator(keyjar=_keyjar, iss=ISSUER[entity])
+    self_signer = InternalSigningService(iss=ISSUER[entity], keyjar=_keyjar)
+    OPERATOR[entity] = Operator(self_signer=self_signer, iss=ISSUER[entity])
 
 FOP = OPERATOR['fo']
 FOP.jwks_bundle = JWKSBundle(FOP.iss)
-FOP.jwks_bundle[FOP.iss] = FOP.keyjar
+FOP.jwks_bundle[FOP.iss] = FOP.self_signer.keyjar
 
 FO1P = OPERATOR['fo1']
 FO1P.jwks_bundle = JWKSBundle(FO1P.iss)
-FO1P.jwks_bundle[FO1P.iss] = FO1P.keyjar
+FO1P.jwks_bundle[FO1P.iss] = FO1P.self_signer.keyjar
 
 ORGOP = OPERATOR['org']
 ADMINOP = OPERATOR['admin']
@@ -94,7 +98,7 @@ def test_create_client_metadata_statement():
 
 def test_pack_and_unpack_ms_lev0():
     cms = ClientMetadataStatement(
-        signing_keys=json.dumps(FOP.keyjar.export_jwks_as_json()),
+        signing_keys=FOP.signing_keys_as_jwks_json(),
         contacts=['info@example.com'])
 
     _jwt = FOP.pack_metadata_statement(cms, alg='RS256', scope=['openid'])
@@ -106,7 +110,7 @@ def test_pack_and_unpack_ms_lev0():
                                    'kid', 'scope', 'contacts', 'aud'}
 
     # Unpack what you have packed
-    _kj = public_keys_keyjar(FOP.keyjar, '', None, FOP.iss)
+    _kj = KeyJar().import_jwks(FOP.signing_keys_as_jwks(), '')
     op = Operator(_kj, jwks_bundle=public_jwks_bundle(FOP.jwks_bundle))
     pr = op.unpack_metadata_statement(jwt_ms=_jwt)
 
@@ -138,7 +142,7 @@ def test_pack_ms_wrong_fo():
 def test_pack_and_unpack_ms_lev1():
     # metadata statement created by the organization
     cms_org = ClientMetadataStatement(
-        signing_keys=ORGOP.keyjar.export_jwks_as_json(),
+        signing_keys=ORGOP.signing_keys_as_jwks_json(),
         contacts=['info@example.com']
     )
 
@@ -147,7 +151,7 @@ def test_pack_and_unpack_ms_lev1():
 
     # metadata statement created by the admin
     cms_rp = ClientMetadataStatement(
-        signing_keys=ADMINOP.keyjar.export_jwks_as_json(),
+        signing_keys=ADMINOP.signing_keys_as_jwks_json(),
         redirect_uris=['https://rp.example.com/auth_cb']
     )
 
@@ -277,7 +281,7 @@ def test_is_lesser_list():
 
 def test_evaluate_metadata_statement_1():
     cms_org = ClientMetadataStatement(
-        signing_keys=ORGOP.keyjar.export_jwks_as_json(),
+        signing_keys=ORGOP.signing_keys_as_jwks_json(),
         contacts=['info@example.com'])
 
     #  signed by FO
@@ -509,21 +513,22 @@ def test_unpack_discovery_info():
 
 
 def test_create_fo_keys_bundle():
-    jb = JWKSBundle(ORGOP.iss, ORGOP.keyjar)
-    jb[FOP.iss] = FOP.keyjar
-    jb[FO1P.iss] = FO1P.keyjar
+    jb = JWKSBundle(ORGOP.iss, ORGOP.self_signer.keyjar)
+    jb[FOP.iss] = FOP.self_signer.keyjar
+    jb[FO1P.iss] = FO1P.self_signer.keyjar
     sb = jb.create_signed_bundle()
     _jw = jws.factory(sb)
     assert _jw
 
 
 def test_create_verify_fo_keys_bundle():
-    jb = JWKSBundle(ORGOP.iss, ORGOP.keyjar)
-    jb[FOP.iss] = FOP.keyjar
-    jb[FO1P.iss] = FO1P.keyjar
+    jb = JWKSBundle(ORGOP.iss, ORGOP.self_signer.keyjar)
+    jb[FOP.iss] = FOP.self_signer.keyjar
+    jb[FO1P.iss] = FO1P.self_signer.keyjar
     sb = jb.create_signed_bundle()
 
-    kj = public_keys_keyjar(ORGOP.keyjar, '', None, ORGOP.iss)
+    kj = public_keys_keyjar(ORGOP.self_signer.keyjar, '', None,
+                            ORGOP.iss)
 
     _jwt = verify_signed_bundle(sb, kj)
     bundle = _jwt["bundle"]

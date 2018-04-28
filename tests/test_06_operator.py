@@ -6,6 +6,8 @@ from urllib.parse import quote_plus
 from urllib.parse import unquote_plus
 from urllib.parse import urlparse
 
+from fedoidcmsg.signing_service import InternalSigningService
+
 from fedoidcmsg import MetadataStatement
 from fedoidcmsg import test_utils
 from fedoidcmsg.bundle import FSJWKSBundle, JWKSBundle
@@ -21,12 +23,14 @@ from oidcmsg.key_jar import public_keys_keyjar
 KEYDEFS = [
     {"type": "RSA", "key": '', "use": ["sig"]},
     {"type": "EC", "crv": "P-256", "use": ["sig"]}
-]
+    ]
 
 TOOL_ISS = 'https://localhost'
 
-FO = {'swamid': 'https://swamid.sunet.se', 'feide': 'https://www.feide.no',
-      'edugain': 'https://edugain.com'}
+FO = {
+    'swamid': 'https://swamid.sunet.se', 'feide': 'https://www.feide.no',
+    'edugain': 'https://edugain.com'
+    }
 
 OA = {'sunet': 'https://sunet.se'}
 
@@ -36,32 +40,42 @@ SMS_DEF = {
     OA['sunet']: {
         "discovery": {
             FO['swamid']: [
-                {'request': {}, 'requester': OA['sunet'],
-                 'signer_add': {'federation_usage': 'discovery'},
-                 'signer': FO['swamid'], 'uri': False},
-            ],
+                {
+                    'request': {}, 'requester': OA['sunet'],
+                    'signer_add': {'federation_usage': 'discovery'},
+                    'signer': FO['swamid'], 'uri': False
+                    },
+                ],
             FO['feide']: [
-                {'request': {}, 'requester': OA['sunet'],
-                 'signer_add': {'federation_usage': 'discovery'},
-                 'signer': FO['feide'], 'uri': True},
-            ],
+                {
+                    'request': {}, 'requester': OA['sunet'],
+                    'signer_add': {'federation_usage': 'discovery'},
+                    'signer': FO['feide'], 'uri': True
+                    },
+                ],
             FO['edugain']: [
-                {'request': {}, 'requester': FO['swamid'],
-                 'signer_add': {'federation_usage': 'discovery'},
-                 'signer': FO['edugain'], 'uri': True},
-                {'request': {}, 'requester': OA['sunet'],
-                 'signer_add': {}, 'signer': FO['swamid'], 'uri': True}
-            ]
-        },
+                {
+                    'request': {}, 'requester': FO['swamid'],
+                    'signer_add': {'federation_usage': 'discovery'},
+                    'signer': FO['edugain'], 'uri': True
+                    },
+                {
+                    'request': {}, 'requester': OA['sunet'],
+                    'signer_add': {}, 'signer': FO['swamid'], 'uri': True
+                    }
+                ]
+            },
         "registration": {
             FO['swamid']: [
-                {'request': {}, 'requester': OA['sunet'],
-                 'signer_add': {'federation_usage': 'registration'},
-                 'signer': FO['swamid'], 'uri': False},
-            ]
+                {
+                    'request': {}, 'requester': OA['sunet'],
+                    'signer_add': {'federation_usage': 'registration'},
+                    'signer': FO['swamid'], 'uri': False
+                    },
+                ]
+            }
         }
     }
-}
 
 # Clear out old stuff
 for d in ['mds', 'ms']:
@@ -104,20 +118,26 @@ class MockHTTPClient():
 
 def test_key_rotation():
     _keyjar = build_keyjar(KEYDEFS)[1]
-    fo = FederationOperator(iss='https://example.com/op', keyjar=_keyjar,
-                            keyconf=KEYDEFS, remove_after=1)
-    fo.rotate_keys()
-    assert len(fo.keyjar.get_issuer_keys('')) == 4
+    self_signer = InternalSigningService('https://example.com/op',
+                                         keyjar=_keyjar, keyconf=KEYDEFS,
+                                         remove_after=1)
+    fo = FederationOperator(iss='https://example.com/op',
+                            self_signer=self_signer)
+    fo.self_signer.rotate_keys()
+    assert len(fo.self_signer.keyjar.get_issuer_keys('')) == 4
     time.sleep(1)
-    fo.rotate_keys()
-    assert len(fo.keyjar.get_issuer_keys('')) == 4
+    fo.self_signer.rotate_keys()
+    assert len(fo.self_signer.keyjar.get_issuer_keys('')) == 4
 
 
 def test_pack_metadata_statement():
     jb = FSJWKSBundle('', None, 'fo_jwks',
                       key_conv={'to': quote_plus, 'from': unquote_plus})
     _keyjar = build_keyjar(KEYDEFS)[1]
-    op = Operator(keyjar=_keyjar, jwks_bundle=jb, iss='https://example.com/')
+    self_signer = InternalSigningService('https://example.com/op',
+                                         keyjar=_keyjar)
+    op = Operator(self_signer=self_signer, jwks_bundle=jb,
+                  iss='https://example.com/')
     req = MetadataStatement(issuer='https://example.org/op')
     sms = op.pack_metadata_statement(req)
     assert sms  # Should be a signed JWT
@@ -136,7 +156,9 @@ def test_pack_metadata_statement():
 
 def test_pack_metadata_statement_other_iss():
     _keyjar = build_keyjar(KEYDEFS)[1]
-    op = Operator(keyjar=_keyjar, iss='https://example.com/')
+    self_signer = InternalSigningService('https://example.com/op',
+                                         keyjar=_keyjar)
+    op = Operator(self_signer=self_signer, iss='https://example.com/')
     req = MetadataStatement(issuer='https://example.org/op')
     sms = op.pack_metadata_statement(req, iss='https://example.com/')
     assert sms  # Should be a signed JWT
@@ -152,7 +174,9 @@ def test_pack_metadata_statement_other_iss():
 
 def test_pack_metadata_statement_other_alg():
     _keyjar = build_keyjar(KEYDEFS)[1]
-    op = Operator(keyjar=_keyjar, iss='https://example.com/')
+    self_signer = InternalSigningService('https://example.com/op',
+                                         keyjar=_keyjar)
+    op = Operator(self_signer=self_signer, iss='https://example.com/')
     req = MetadataStatement(issuer='https://example.org/op')
     sms = op.pack_metadata_statement(req, alg='ES256')
     assert sms  # Should be a signed JWT

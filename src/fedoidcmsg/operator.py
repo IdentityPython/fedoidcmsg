@@ -45,7 +45,7 @@ class LessOrEqual(object):
     metadata statement.
     """
 
-    def __init__(self, iss='', sup=None, exp=0, signing_keys=None, **kwargs):
+    def __init__(self, iss='', sup=None, exp=0, self_signer=None, **kwargs):
         """
         :param iss: Issuer ID
         :param sup: Superior
@@ -62,7 +62,7 @@ class LessOrEqual(object):
         self.err = {}
         self.le = {}
         self.exp = exp
-        self.signing_keys = signing_keys
+        self.self_signer = self_signer
 
     def __setitem__(self, key, value):
         self.le[key] = value
@@ -177,8 +177,8 @@ class Operator(object):
     An operator in a OIDC federation.
     """
 
-    def __init__(self, keyjar=None, jwks_bundle=None, httpcli=None, iss=None,
-                 lifetime=3600):
+    def __init__(self, self_signer=None, jwks_bundle=None, httpcli=None,
+                 iss=None, lifetime=3600):
         """
 
         :param keyjar: Contains the operators signing keys
@@ -191,7 +191,7 @@ class Operator(object):
         :param lifetime: Default lifetime of signed statements produced
             by this signer.
         """
-        self.keyjar = keyjar
+        self.self_signer = self_signer
         self.jwks_bundle = jwks_bundle
         self.httpcli = httpcli
         self.iss = iss
@@ -200,14 +200,14 @@ class Operator(object):
 
     def signing_keys_as_jwks(self):
         """
-        Build a JWKS from the signing keys in the KeyJar
-        
+        Build a JWKS from the signing keys belonging to the self signer
+
         :return: Dictionary
         """
-        _l = [x.serialize() for x in self.keyjar.get_signing_key()]
+        _l = [x.serialize() for x in self.self_signer.keyjar.get_signing_key()]
         if not _l:
             _l = [x.serialize() for x in
-                  self.keyjar.get_signing_key(owner=self.iss)]
+                  self.self_signer.keyjar.get_signing_key(owner=self.iss)]
         return {'keys': _l}
 
     def signing_keys_as_jwks_json(self):
@@ -365,7 +365,7 @@ class Operator(object):
             iss = self.iss
 
         if keyjar is None:
-            keyjar = self.keyjar
+            keyjar = self.self_signer.keyjar
 
         if lifetime == -1:
             lifetime = self.lifetime
@@ -492,41 +492,18 @@ class Operator(object):
 
 
 class FederationOperator(Operator):
-    def __init__(self, keyjar=None, jwks_bundle=None, httpcli=None,
+    def __init__(self, self_signer=None, jwks_bundle=None, httpcli=None,
                  iss=None, keyconf=None, bundle_sign_alg='RS256',
                  remove_after=86400):
 
-        Operator.__init__(self, keyjar=keyjar, jwks_bundle=jwks_bundle,
-                          httpcli=httpcli, iss=iss)
+        Operator.__init__(self, self_signer=self_signer,
+                          jwks_bundle=jwks_bundle, httpcli=httpcli, iss=iss)
 
         self.keyconf = keyconf
         self.jb = jwks_bundle
         self.bundle_sign_alg = bundle_sign_alg
         self.remove_after = remove_after  # After this time inactive keys are
         # removed from the keyjar
-
-    def public_keys(self):
-        return self.keyjar.export_jwks()
-
-    def rotate_keys(self, keyconf=None):
-        _old = [k.kid for k in self.keyjar.get_issuer_keys('') if k.kid]
-
-        if keyconf:
-            self.keyjar = build_keyjar(keyconf, keyjar=self.keyjar)[1]
-        else:
-            self.keyjar = build_keyjar(self.keyconf, keyjar=self.keyjar)[1]
-
-        self.keyjar.remove_after = self.remove_after
-        self.keyjar.remove_outdated()
-
-        _now = time.time()
-        for k in self.keyjar.get_issuer_keys(''):
-            if k.kid in _old:
-                if not k.inactive_since:
-                    k.inactive_since = _now
-
-    def export_jwks(self):
-        return self.keyjar.export_jwks()
 
     def add_to_bundle(self, fo, jwks):
         self.jb[fo] = jwks

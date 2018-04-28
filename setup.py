@@ -69,5 +69,10 @@ setup(
     tests_require=[
         "pytest",
         "future"
-    ]
+    ],
+    scripts=[
+        'scripts/packer.py',
+        'scripts/create_jwks.py',
+        'scripts/make_req.py',
+        ]
 )
