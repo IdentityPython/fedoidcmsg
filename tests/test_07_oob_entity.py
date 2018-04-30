@@ -123,6 +123,85 @@ def test_sequence():
 
     fe.add_sms_spec_to_request(req)
     fe.add_signing_keys(req)
-    sms_spec = fe.self_sign(req, 'https://example.com')
+    updated_req = fe.self_sign(req, 'https://example.com')
 
-    assert sms_spec
+    assert updated_req
+    assert set(updated_req.keys()) == {'foo', 'signing_keys',
+                                       'metadata_statements',
+                                       'metadata_statement_uris'}
+
+
+def test_update_metadata_statement():
+    SWAMID_CONF = {
+        'self_signer': {
+            'private_path': './swamid_private_jwks',
+            'key_defs': KEYDEFS,
+            'public_path': './swamid_public_jwks'
+        },
+        'sms_dir': ''
+    }
+    SWAMID = make_federation_entity(SWAMID_CONF, 'https://swamid.sunet.se')
+
+    SUNET_CONF = {
+        'self_signer': {
+            'private_path': './sunet_private_jwks',
+            'key_defs': KEYDEFS,
+            'public_path': './sunet_public_jwks'
+        },
+        'sms_dir': ''
+    }
+
+    SUNET = make_federation_entity(SUNET_CONF, 'https://sunet.se')
+    ms = MetadataStatement()
+    SUNET.add_signing_keys(ms)
+    # Sunet sends metadata to SWAMID for signing
+    sms = SWAMID.self_signer.sign(ms, 'https://sunet.se')
+    # SWAMID returns signed metadata statement to SUNET
+    SUNET.metadata_statements['discovery']['https://swamid.sunet.se'] = sms
+
+    config = {
+        'self_signer': {
+            'private_path': './op_private_jwks',
+            'key_defs': KEYDEFS,
+            'public_path': './op_public_jwks'
+        },
+        'sms_dir': '',
+        'context': 'discovery'
+    }
+
+    op = make_federation_entity(config, 'https://op.sunet.se')
+
+    # create OP metadata_statement
+    metadata_statement = MetadataStatement(foo='bar')
+    op.add_signing_keys(metadata_statement)
+
+    # sent to SUNET for signing
+    SUNET.add_sms_spec_to_request(metadata_statement, context='discovery')
+    sms = SUNET.self_signer.sign(metadata_statement, 'https://op.sunet.se')
+
+    # signed metadata statement returned to OP and the OP adds it
+    # to its store of signed metadata statements
+    op.metadata_statements['discovery']['https://swamid.sunet.se'] = sms
+
+
+    metadata_statement = MetadataStatement(foo='bar')
+    metadata_statement = op.update_metadata_statement(metadata_statement)
+    assert metadata_statement
+    assert set(metadata_statement.keys()) == {'foo', 'signing_keys',
+                                              'metadata_statements'}
+
+    # on the RP side
+    rp = FederationEntityOOB(None, 'https://rp.sunet.se')
+    # Need the FO bundle, which in this case only needs Swamid's key
+    jb = JWKSBundle('https://rp.sunet.se')
+    _kj = KeyJar()
+    _kj.import_jwks(SWAMID.self_signer.public_keys(), 'https://swamid.sunet.se')
+    jb['https://swamid.sunet.se'] = _kj
+    rp.jwks_bundle = jb
+
+    l = rp.get_metadata_statement(metadata_statement, MetadataStatement,
+                                  'discovery')
+
+    assert l[0].iss == 'https://op.sunet.se'
+    assert l[0].fo == 'https://swamid.sunet.se'
+    assert l[0].le == {'foo':'bar'}

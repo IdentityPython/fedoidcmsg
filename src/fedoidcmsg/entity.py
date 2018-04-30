@@ -137,6 +137,9 @@ class FederationEntity(Operator):
         statement['signing_keys'] = self.self_signer.export_jwks_as_json()
         return statement
 
+    def update_metadata_statement(self, req):
+        return req
+
 
 class FederationEntityOOB(FederationEntity):
     """
@@ -168,7 +171,7 @@ class FederationEntityOOB(FederationEntity):
         else:
             self.metadata_statements = MIN_SET
 
-    def add_sms_spec_to_request(self, req, federation='', loes=None):
+    def add_sms_spec_to_request(self, req, federation='', loes=None, context=''):
         """
         Update a request with signed metadata statements.
         
@@ -179,15 +182,18 @@ class FederationEntityOOB(FederationEntity):
         """
         if federation:  # A specific federation
             if isinstance(federation, list):
-                req.update(self.gather_metadata_statements(federation))
+                req.update(self.gather_metadata_statements(federation,
+                                                           context=context))
             else:
-                req.update(self.gather_metadata_statements([federation]))
+                req.update(self.gather_metadata_statements([federation],
+                                                           context=context))
         else:  # All federations I belong to
             if loes:
                 _fos = list([r.fo for r in loes])
-                req.update(self.gather_metadata_statements(_fos))
+                req.update(self.gather_metadata_statements(_fos,
+                                                           context=context))
             else:
-                req.update(self.gather_metadata_statements())
+                req.update(self.gather_metadata_statements(context=context))
 
         return req
 
@@ -207,13 +213,15 @@ class FederationEntityOOB(FederationEntity):
 
         sms_spec = {}
         for ref in ['metadata_statement_uris', 'metadata_statements']:
+            if ref not in req:
+                continue
             sms_spec[ref] = Message()
 
             for foid, value in req[ref].items():
                 _copy = creq.copy()
                 _copy[ref] = MetadataStatement()
                 _copy[ref][foid] = value
-                _jws = self.self_signer.create(_copy, receiver=receiver)
+                _jws = self.self_signer.sign(_copy, receiver=receiver)
                 sms_spec[ref][foid] = _jws
 
         creq.update(sms_spec)
@@ -272,6 +280,24 @@ class FederationEntityOOB(FederationEntity):
                             _res[value_type][f] = val
 
         return _res
+
+    def update_metadata_statement(self, metadata_statement, receiver=''):
+        """
+        Update a metadata statement by:
+         * adding signed metadata statements or uris pointing to signed
+           metadata statements.
+         * adding the entities signing keys
+         * create metadata statements one per signed metadata statement or uri
+           sign these and add them to the metadata statement
+
+        :param metadata_statement: A :py:class:`fedoidcmsg.MetadataStatement`
+            instance
+        :param receiver: The intended receiver of the metadata statement
+        :return: An augmented metadata statement
+        """
+        self.add_sms_spec_to_request(metadata_statement)
+        self.add_signing_keys(metadata_statement)
+        return self.self_sign(metadata_statement, receiver)
 
 
 class FederationEntityAMS(FederationEntity):

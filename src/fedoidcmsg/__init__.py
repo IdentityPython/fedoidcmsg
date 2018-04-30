@@ -18,7 +18,7 @@ from oidcmsg.oidc import RegistrationRequest
 logger = logging.getLogger(__name__)
 
 __author__ = 'roland'
-__version__ = '0.7.0'
+__version__ = '0.7.1'
 
 #: Contexts in which metadata statements can be used
 CONTEXTS = ['registration', 'discovery', 'response']
