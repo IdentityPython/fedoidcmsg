@@ -45,7 +45,7 @@ class LessOrEqual(object):
     metadata statement.
     """
 
-    def __init__(self, iss='', sup=None, exp=0, self_signer=None, **kwargs):
+    def __init__(self, iss='', sup=None, exp=0, keyjar=None, **kwargs):
         """
         :param iss: Issuer ID
         :param sup: Superior
@@ -62,7 +62,7 @@ class LessOrEqual(object):
         self.err = {}
         self.le = {}
         self.exp = exp
-        self.self_signer = self_signer
+        self.keyjar = keyjar
 
     def __setitem__(self, key, value):
         self.le[key] = value

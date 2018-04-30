@@ -1,20 +1,20 @@
+from oidcmsg.key_jar import KeyJar
+from oidcmsg.key_jar import build_keyjar
+from oidcmsg.key_jar import public_keys_keyjar
+from oidcmsg.oauth2 import Message
+
 from fedoidcmsg import MetadataStatement
 from fedoidcmsg.bundle import JWKSBundle
 from fedoidcmsg.entity import FederationEntity
+from fedoidcmsg.entity import FederationEntityOOB
 from fedoidcmsg.entity import make_federation_entity
 from fedoidcmsg.operator import Operator
 from fedoidcmsg.signing_service import InternalSigningService
-from fedoidcmsg.signing_service import Signer
-
-from oidcmsg.oauth2 import Message
-from oidcmsg.key_jar import build_keyjar
-from oidcmsg.key_jar import KeyJar
-from oidcmsg.key_jar import public_keys_keyjar
 
 KEYDEFS = [
     {"type": "RSA", "key": '', "use": ["sig"]},
     {"type": "EC", "crv": "P-256", "use": ["sig"]}
-    ]
+]
 
 
 def public_jwks_bundle(jwks_bundle):
@@ -44,7 +44,7 @@ def test_get_metadata_statement():
     assert loe
 
 
-def test_ace():
+def test_add_sms_spec_to_request():
     jb = JWKSBundle('')
     for iss in ['https://example.org/', 'https://example.com/']:
         jb[iss] = build_keyjar(KEYDEFS)[1]
@@ -52,45 +52,77 @@ def test_ace():
 
     sign_serv = InternalSigningService('https://signer.example.com',
                                        keyjar=kj)
-    signer = Signer(sign_serv)
-    signer.metadata_statements['response'] = {
-        'https://example.org/': 'https://example.org/sms1'
+    ent = FederationEntityOOB(None, self_signer=sign_serv,
+                              fo_bundle=public_jwks_bundle(jb),
+                              context='response')
+    ent.metadata_statements = {
+        'response': {
+            'https://example.org/': 'https://example.org/sms1'
+        }
     }
 
-    ent = FederationEntity(None, self_signer=sign_serv, signer=signer,
-                           fo_bundle=public_jwks_bundle(jb))
     req = MetadataStatement(foo='bar')
-    ent.ace(req, ['https://example.org/'], 'response')
+    ent.add_sms_spec_to_request(req, ['https://example.org/'])
 
-    assert 'metadata_statements' in req
-    assert 'signing_keys' not in req
+    assert 'metadata_statement_uris' in req
+
+
+def test_add_signing_keys():
+    kj = build_keyjar(KEYDEFS)[1]
+    sign_serv = InternalSigningService('https://signer.example.com',
+                                       keyjar=kj)
+    ent = FederationEntityOOB(None, self_signer=sign_serv)
+    req = MetadataStatement(foo='bar')
+    ent.add_signing_keys(req)
+    assert 'signing_keys' in req
 
 
 def test_make_federation_entity():
     config = {
-        'signer': {
-            'signing_service': {
-                'type': 'internal',
-                'private_path': './private_jwks',
-                'key_defs': KEYDEFS,
-                'public_path': './public_jwks'
-                },
-            'ms_dir': 'ms_dir'
-            },
+        'self_signer': {
+            'private_path': './private_jwks',
+            'key_defs': KEYDEFS,
+            'public_path': './public_jwks'
+        },
+        'sms_dir': 'ms/https%3A%2F%2Fsunet.se',
         'fo_bundle': {
             'private_path': './fo_bundle_signing_keys',
             'key_defs': KEYDEFS,
             'public_path': './pub_fo_bundle_signing_keys',
-            'bundle': 'bundle.json'
-            },
-        'private_path': './entity_keys',
-        'key_defs': KEYDEFS,
-        'public_path': './pub_entity_keys'
+            'dir': 'fo_jwks'
         }
+    }
 
     fe = make_federation_entity(config, 'https://op.example.com')
     assert fe
-    assert isinstance(fe.signer, Signer)
+    assert isinstance(fe, FederationEntityOOB)
     assert isinstance(fe.jwks_bundle, JWKSBundle)
     assert fe.iss == 'https://op.example.com'
-    assert fe.signer.signing_service.iss == 'https://op.example.com'
+
+
+def test_sequence():
+    config = {
+        'self_signer': {
+            'private_path': './private_jwks',
+            'key_defs': KEYDEFS,
+            'public_path': './public_jwks'
+        },
+        'sms_dir': 'ms/https%3A%2F%2Fsunet.se',
+        'fo_bundle': {
+            'private_path': './fo_bundle_signing_keys',
+            'key_defs': KEYDEFS,
+            'public_path': './pub_fo_bundle_signing_keys',
+            'dir': 'fo_jwks'
+        },
+        'context': 'discovery'
+    }
+
+    fe = make_federation_entity(config, 'https://op.example.com')
+
+    req = MetadataStatement(foo='bar')
+
+    fe.add_sms_spec_to_request(req)
+    fe.add_signing_keys(req)
+    sms_spec = fe.self_sign(req, 'https://example.com')
+
+    assert sms_spec

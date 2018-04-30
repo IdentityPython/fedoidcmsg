@@ -188,25 +188,3 @@ def test_pack_metadata_statement_other_alg():
     _kj = public_keys_keyjar(_keyjar, '', None, op.iss)
     r = _jwt.verify_compact(sms, _kj.get_signing_key(owner=op.iss))
     assert r
-
-
-def test_unpack_metadata_statement_uri():
-    s = signer[OA['sunet']]
-    req = MetadataStatement(issuer='https://example.org/op')
-    # Not intermediate
-    ms = s.create_signed_metadata_statement(req, 'discovery', single=True)
-
-    jb = FSJWKSBundle('', None, 'fo_jwks',
-                      key_conv={'to': quote_plus, 'from': unquote_plus})
-
-    mds = MetaDataStore('msd')
-
-    op = Operator(jwks_bundle=public_jwks_bundle(jb))
-    op.httpcli = MockHTTPClient(mds)
-    res = op.unpack_metadata_statement(jwt_ms=ms)
-    assert len(res.parsed_statement) == 3
-    loel = op.evaluate_metadata_statement(res.result)
-    assert len(loel) == 3
-    assert set([l.fo for l in loel]) == {'https://swamid.sunet.se',
-                                         'https://edugain.com',
-                                         'https://www.feide.no'}

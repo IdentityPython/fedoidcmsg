@@ -6,7 +6,7 @@ from oidcmsg.oidc import RegistrationRequest
 
 from fedoidcmsg import MetadataStatement
 from fedoidcmsg import test_utils
-from fedoidcmsg.signing_service import InternalSigningService, make_signer
+from fedoidcmsg.signing_service import InternalSigningService, make_internal_signing_service
 from fedoidcmsg.signing_service import make_signing_service
 from fedoidcmsg.signing_service import WebSigningServiceClient
 
@@ -61,12 +61,12 @@ class Response(object):
 
 def test_make_internal_signing_service():
     config = {
-        'type': 'internal',
         'private_path': './private_jwks.json',
         'key_defs': KEYDEFS,
         'public_path': './public_jwks.json'
     }
-    signing_service = make_signing_service(config, 'https://example.com')
+    signing_service = make_internal_signing_service(config,
+                                                    'https://example.com')
     assert signing_service.iss == 'https://example.com'
     assert len(signing_service.keyjar.issuer_keys['']) == 1
     assert len(signing_service.keyjar.issuer_keys[''][0]) == 2
@@ -96,24 +96,18 @@ def test_internal_signing_service():
         RegistrationRequest(redirect_uris=['https://example.com/rp/cb']),
         'https://example.com/rp'
     )
-    assert 'sms' in res
-    _jws = factory(res['sms'])
+
+    _jws = factory(res)
     assert _jws.jwt.headers['alg'] == 'RS256'
     msg = _jws.jwt.payload()
     assert msg['iss'] == 'https://swamid.sunet.se'
     assert msg['aud'] == ['https://example.com/rp']
 
 
-def test_signer():
-    items = signer[OA['sunet']].items()
-    assert set(list(items.keys())) == {'discovery', 'registration'}
-    assert set(list(items['discovery'])) == {FO['swamid']}
-
-
 def test_create_sms():
-    s = signer[OA['sunet']]
+    s = signer[OA['sunet']]['self_signer']
     req = MetadataStatement(issuer='https://example.org/op')
-    r = s.create_signed_metadata_statement(req, 'discovery')
+    r = s.create(req, 'discovery')
     assert r
 
 
@@ -125,7 +119,7 @@ def test_web_signing_service():
         'https://example.com/rp'
     )
 
-    _jwks = _kj.export_jwks()
+    _jwks = _kj.export_jwks(issuer='https://swamid.sunet.se')
     _vkj = KeyJar()
     _vkj.import_jwks(_jwks, 'https://swamid.sunet.se')
 
@@ -133,28 +127,9 @@ def test_web_signing_service():
                                   'https://swamid.sunet.se/mdss',
                                   'https://example.com/rp', _vkj)
 
-    response = Response(200, _sms['sms'],
+    response = Response(200, _sms,
                         {'Location': 'https://swamid.sunet.se/mdss/abcdefg'})
 
     _res = wss.parse_response(response)
 
     assert set(_res.keys()) == {'sms', 'loc'}
-
-
-def test_make_signer():
-    config = {
-        'signing_service': {
-            'type': 'internal',
-            'private_path': './private_mdss_keys',
-            'key_defs': KEYDEFS,
-            'public_path': './public_mdss_keys'
-        },
-        'ms_dir': 'sms_dir',
-        'contexts': ['discovery', 'registration', 'response']
-    }
-
-    signer = make_signer(config, 'https://example.com/')
-    assert signer
-    assert signer.def_context == ''
-    assert set(signer.metadata_statements.keys()) == {'discovery', 'registration', 'response'}
-    assert isinstance(signer.signing_service, InternalSigningService)

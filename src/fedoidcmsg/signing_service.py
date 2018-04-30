@@ -3,23 +3,21 @@ import json
 import logging
 import os
 import time
-
-import requests
-
 from urllib.parse import quote_plus
 from urllib.parse import unquote_plus
 
+import requests
 from cryptojwt import as_unicode
-from cryptojwt.jws import JWSException
 from cryptojwt.jws import factory
-from oidcmsg.key_jar import init_key_jar, build_keyjar
+from cryptojwt.jws import JWSException
+from oidcmsg.jwt import JWT
+from oidcmsg.key_jar import build_keyjar
+from oidcmsg.key_jar import init_key_jar
+from oidcmsg.oauth2 import Message
 
 from fedoidcmsg import CONTEXTS
 from fedoidcmsg import MIN_SET
 from fedoidcmsg.file_system import FileSystem
-
-from oidcmsg.oauth2 import Message
-from oidcmsg.jwt import JWT
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +48,7 @@ class InternalSigningService(SigningService):
     """
 
     def __init__(self, iss, keyjar, add_ons=None, alg='RS256',
-            lifetime=3600, keyconf=None, remove_after=86400):
+                 lifetime=3600, keyconf=None, remove_after=86400):
         """
         
         :param iss: The ID for this entity 
@@ -100,7 +98,7 @@ class InternalSigningService(SigningService):
             sms = _jwt.pack(payload=_metadata.to_dict(), owner=owner,
                             recv=receiver)
 
-        return {'sms': sms}
+        return sms
 
     def name(self):
         return self.iss
@@ -142,7 +140,7 @@ class WebSigningServiceClient(SigningService):
     """
 
     def __init__(self, iss, url, id, keyjar, add_ons=None, alg='RS256',
-            token='', token_type='Bearer', verify_ssl_cert=True):
+                 token='', token_type='Bearer', verify_ssl_cert=True):
         """
 
         :param iss: The issuer ID of the signer
@@ -187,8 +185,10 @@ class WebSigningServiceClient(SigningService):
 
     def req_args(self):
         if self.token:
-            _args = {'verify': self.verify_ssl_cert,
-                     'auth': '{} {}'.format(self.token_type, self.token)}
+            _args = {
+                'verify': self.verify_ssl_cert,
+                'auth': '{} {}'.format(self.token_type, self.token)
+            }
         else:
             _args = {'verify': self.verify_ssl_cert}
         return _args
@@ -231,224 +231,242 @@ class WebSigningServiceClient(SigningService):
         return self.parse_response(response)
 
 
-class Signer(object):
-    """
-    A signer. Has one signing services it can use.
-    Keeps a dictionary with the created signed metadata statements.
-    """
-
-    def __init__(self, signing_service=None, ms_dir=None, def_context=''):
-        """
-        
-        :param signing_service: Which signing service this signer can use. 
-        :param ms_dir: Where the file copies of the signed metadata statements
-            are kept. Storing/retrieving the signed metadata statements are
-            handled by :py:class:`fedoidc.file_system.FileSystem` instances.
-            One per operations where they are expected to used.
-        :param def_context: Default context, one out of
-            :py:data:`fedoidc.CONTEXTS`
-        """
-
-        self.metadata_statements = {}
-
-        if isinstance(ms_dir, dict):
-            for key, _dir in ms_dir.items():
-                if key not in CONTEXTS:
-                    raise ValueError('{} not expected operation'.format(key))
-                self.metadata_statements[key] = FileSystem(
-                    _dir, key_conv={'to': quote_plus, 'from': unquote_plus})
-        elif ms_dir:
-            for item in os.listdir(ms_dir):
-                if item not in CONTEXTS:
-                    raise ValueError('{} not expected operation'.format(item))
-                _dir = os.path.join(ms_dir, item)
-                if os.path.isdir(_dir):
-                    self.metadata_statements[item] = FileSystem(
-                        _dir, key_conv={'to': quote_plus, 'from': unquote_plus})
-        else:
-            self.metadata_statements = MIN_SET
-
-        self.signing_service = signing_service
-        self.def_context = def_context
-
-    def items(self):
-        """
-        Return a dictionary with contexts as keys and list of FOs as values.
-        
-        :rtype: list 
-        """
-        res = {}
-        for key, fs in self.metadata_statements.items():
-            res[key] = list(fs.keys())
-        return res
-
-    def metadata_statement_fos(self, context=''):
-        """
-        Get all the FOs that have signed metadata statements for a specific 
-        context
-        
-        :param context: One of :py:data:`CONTEXTS` 
-        :rtype: list
-        """
-        if not context:
-            context = self.def_context
-
-        try:
-            return list(self.metadata_statements[context].keys())
-        except KeyError:
-            return []
-
-    def create_signed_metadata_statement(self, req, context='', fos=None,
-            single=False):
-        """
-        Gathers the metadata statements adds them to the request and signs
-        the whole document.
-        If *single* is **False** separate signed metadata statements will 
-        be constructed per federation operator. If *single* is **True**
-        only one signed metadata statement, containing all the signed
-        metadata statements from all the federation operators, is created.
-        
-        :param req: The metadata statement to be signed
-        :param context: The context in which this Signed metadata
-            statement should be used
-        :param fos: Signed metadata statements from these Federation Operators
-            should be added.
-        :param single: Should only a single signed metadata statement be
-            returned or a set of such in a dictionary.
-        :return: Dictionary with signed Metadata Statements as values
-        """
-
-        if not context:
-            context = self.def_context
-
-        _sms = None
-        if self.metadata_statements:
-            try:
-                cms = self.metadata_statements[context]
-            except KeyError:
-                if self.metadata_statements == {'register': {},
-                                                'discovery': {},
-                                                'response': {}}:
-                    # No superior so an FO then.
-                    _res = self.signing_service.create(req)
-                    return {self.signing_service.iss: _res['sms']}
-
-                try:
-                    logger.error(
-                        'Signer: {}, items: {}'.format(self.signing_service.iss,
-                                                       self.items()))
-                except AttributeError:
-                    raise SigningServiceError(
-                        'This signer can not sign for that context')
-                logger.error(
-                    'No metadata statements for this context: {}'.format(
-                        context))
-                raise
-            else:
-                if cms == {}:
-                    # No superior so a FO then.
-                    _res = self.signing_service.create(req)
-                    return {self.signing_service.iss: _res['sms']}
-
-                if fos is None:
-                    fos = list(cms.keys())
-
-                if single:
-                    for f in fos:
-                        try:
-                            val = cms[f]
-                        except KeyError:
-                            continue
-
-                        if val.startswith('http'):
-                            try:
-                                req['metadata_statement_uris'][f] = val
-                            except KeyError:
-                                req['metadata_statement_uris'] = {f: val}
-                        else:
-                            try:
-                                req['metadata_statements'][f] = val
-                            except KeyError:
-                                req['metadata_statements'] = {f: val}
-
-                    _sms = self.signing_service.create(req)['sms']
-                else:
-                    _sms = {}
-                    for f in fos:
-                        try:
-                            val = cms[f]
-                        except KeyError:
-                            continue
-
-                        if val.startswith('http'):
-                            req['metadata_statement_uris'] = {f: val}
-                            _sms[f] = self.signing_service.create(req)['sms']
-                            del req['metadata_statement_uris']
-                        else:
-                            req['metadata_statements'] = {f: val}
-                            _sms[f] = self.signing_service.create(req)['sms']
-                            del req['metadata_statements']
-
-                if fos and not _sms:
-                    raise KeyError('No metadata statements matched')
-
-        return _sms
-
-    def gather_metadata_statements(self, context='', fos=None):
-        """
-        Only gathers metadata statements and returns them.
-        
-        :param context: The context in which this Signed metadata
-            statement should be used
-        :param fos: Signed metadata statements from these Federation Operators
-            should be added.
-        :return: Dictionary with signed Metadata Statements as values
-        """
-
-        if not context:
-            context = self.def_context
-
-        _res = {}
-        if self.metadata_statements:
-            try:
-                cms = self.metadata_statements[context]
-            except KeyError:
-                if self.metadata_statements == {'register': {},
-                                                'discovery': {},
-                                                'response': {}}:
-                    # No superior so an FO then. Nothing to add ..
-                    pass
-                else:
-                    logger.error(
-                        'No metadata statements for this context: {}'.format(
-                            context))
-                    raise ValueError('Wrong context "{}"'.format(context))
-            else:
-                if cms != {}:
-                    if fos is None:
-                        fos = list(cms.keys())
-
-                    for f in fos:
-                        try:
-                            val = cms[f]
-                        except KeyError:
-                            continue
-
-                        if val.startswith('http'):
-                            attr = 'metadata_statement_uris'
-                        else:
-                            attr = 'metadata_statements'
-
-                        try:
-                            _res[attr][f] = val
-                        except KeyError:
-                            _res[attr] = Message()
-                            _res[attr][f] = val
-
-        return _res
+# class Signer(object):
+#     """
+#     A signer. Has one signing services it can use.
+#     Keeps a dictionary with the created signed metadata statements.
+#     """
+#
+#     def __init__(self, signing_service=None, sms_dir=None, def_context=''):
+#         """
+#
+#         :param signing_service: Which signing service this signer can use.
+#         :param sms_dir: Where the file copies of the signed metadata statements
+#             are kept. Storing/retrieving the signed metadata statements are
+#             handled by :py:class:`fedoidc.file_system.FileSystem` instances.
+#             One per operations where they are expected to used.
+#         :param def_context: Default context, one out of
+#             :py:data:`fedoidc.CONTEXTS`
+#         """
+#
+#         self.metadata_statements = {}
+#
+#         if isinstance(sms_dir, dict):
+#             for key, _dir in sms_dir.items():
+#                 if key not in CONTEXTS:
+#                     raise ValueError('{} not expected operation'.format(key))
+#                 self.metadata_statements[key] = FileSystem(
+#                     _dir, key_conv={'to': quote_plus, 'from': unquote_plus})
+#         elif sms_dir:
+#             for item in os.listdir(sms_dir):
+#                 if item not in CONTEXTS:
+#                     raise ValueError('{} not expected operation'.format(item))
+#                 _dir = os.path.join(sms_dir, item)
+#                 if os.path.isdir(_dir):
+#                     self.metadata_statements[item] = FileSystem(
+#                         _dir, key_conv={'to': quote_plus, 'from': unquote_plus})
+#         else:
+#             self.metadata_statements = MIN_SET
+#
+#         self.signing_service = signing_service
+#         self.def_context = def_context
+#
+#     def items(self):
+#         """
+#         Return a dictionary with contexts as keys and list of FOs as values.
+#
+#         :rtype: list
+#         """
+#         res = {}
+#         for key, fs in self.metadata_statements.items():
+#             res[key] = list(fs.keys())
+#         return res
+#
+#     def metadata_statement_fos(self, context=''):
+#         """
+#         Get all the FOs that have signed metadata statements for a specific
+#         context
+#
+#         :param context: One of :py:data:`CONTEXTS`
+#         :rtype: list
+#         """
+#         if not context:
+#             context = self.def_context
+#
+#         try:
+#             return list(self.metadata_statements[context].keys())
+#         except KeyError:
+#             return []
+#
+#     def create_signed_metadata_statement(self, req, context='', fos=None,
+#                                          single=False):
+#         """
+#         Gathers the metadata statements adds them to the request and signs
+#         the whole document.
+#         If *single* is **False** separate signed metadata statements will
+#         be constructed per federation operator. If *single* is **True**
+#         only one signed metadata statement, containing all the signed
+#         metadata statements from all the federation operators, is created.
+#
+#         :param req: The metadata statement to be signed
+#         :param context: The context in which this Signed metadata
+#             statement should be used
+#         :param fos: Signed metadata statements from these Federation Operators
+#             should be added.
+#         :param single: Should only a single signed metadata statement be
+#             returned or a set of such in a dictionary.
+#         :return: Dictionary with signed Metadata Statements as values
+#         """
+#
+#         if not context:
+#             context = self.def_context
+#
+#         _sms = None
+#         if self.metadata_statements:
+#             try:
+#                 cms = self.metadata_statements[context]
+#             except KeyError:
+#                 if self.metadata_statements == {
+#                     'register': {},
+#                     'discovery': {},
+#                     'response': {}
+#                 }:
+#                     # No superior so an FO then.
+#                     _res = self.signing_service.create(req)
+#                     return {self.signing_service.iss: _res['sms']}
+#
+#                 try:
+#                     logger.error(
+#                         'Signer: {}, items: {}'.format(self.signing_service.iss,
+#                                                        self.items()))
+#                 except AttributeError:
+#                     raise SigningServiceError(
+#                         'This signer can not sign for that context')
+#                 logger.error(
+#                     'No metadata statements for this context: {}'.format(
+#                         context))
+#                 raise
+#             else:
+#                 if cms == {}:
+#                     # No superior so a FO then.
+#                     _res = self.signing_service.create(req)
+#                     return {self.signing_service.iss: _res['sms']}
+#
+#                 if fos is None:
+#                     fos = list(cms.keys())
+#
+#                 if single:
+#                     for f in fos:
+#                         try:
+#                             val = cms[f]
+#                         except KeyError:
+#                             continue
+#
+#                         if val.startswith('http'):
+#                             try:
+#                                 req['metadata_statement_uris'][f] = val
+#                             except KeyError:
+#                                 req['metadata_statement_uris'] = {f: val}
+#                         else:
+#                             try:
+#                                 req['metadata_statements'][f] = val
+#                             except KeyError:
+#                                 req['metadata_statements'] = {f: val}
+#
+#                     _sms = self.signing_service.create(req)['sms']
+#                 else:
+#                     _sms = {}
+#                     for f in fos:
+#                         try:
+#                             val = cms[f]
+#                         except KeyError:
+#                             continue
+#
+#                         if val.startswith('http'):
+#                             req['metadata_statement_uris'] = {f: val}
+#                             _sms[f] = self.signing_service.create(req)['sms']
+#                             del req['metadata_statement_uris']
+#                         else:
+#                             req['metadata_statements'] = {f: val}
+#                             _sms[f] = self.signing_service.create(req)['sms']
+#                             del req['metadata_statements']
+#
+#                 if fos and not _sms:
+#                     raise KeyError('No metadata statements matched')
+#
+#         return _sms
+#
+#     def gather_metadata_statements(self, context='', fos=None):
+#         """
+#         Only gathers metadata statements and returns them.
+#
+#         :param context: The context in which this Signed metadata
+#             statement should be used
+#         :param fos: Signed metadata statements from these Federation Operators
+#             should be added.
+#         :return: Dictionary with signed Metadata Statements as values
+#         """
+#
+#         if not context:
+#             context = self.def_context
+#
+#         _res = {}
+#         if self.metadata_statements:
+#             try:
+#                 cms = self.metadata_statements[context]
+#             except KeyError:
+#                 if self.metadata_statements == {
+#                     'register': {},
+#                     'discovery': {},
+#                     'response': {}
+#                 }:
+#                     # No superior so an FO then. Nothing to add ..
+#                     pass
+#                 else:
+#                     logger.error(
+#                         'No metadata statements for this context: {}'.format(
+#                             context))
+#                     raise ValueError('Wrong context "{}"'.format(context))
+#             else:
+#                 if cms != {}:
+#                     if fos is None:
+#                         fos = list(cms.keys())
+#
+#                     for f in fos:
+#                         try:
+#                             val = cms[f]
+#                         except KeyError:
+#                             continue
+#
+#                         if val.startswith('http'):
+#                             attr = 'metadata_statement_uris'
+#                         else:
+#                             attr = 'metadata_statements'
+#
+#                         try:
+#                             _res[attr][f] = val
+#                         except KeyError:
+#                             _res[attr] = Message()
+#                             _res[attr][f] = val
+#
+#         return _res
 
 
 KJ_SPECS = ['private_path', 'key_defs', 'public_path']
+
+
+def make_internal_signing_service(config, entity_id):
+    """
+    Given configuration initiate an InternalSigningService instance
+
+    :param config: The signing service configuration
+    :return: A InternalSigningService instance
+    """
+
+    _args = dict([(k, v) for k, v in config.items() if k in KJ_SPECS])
+    _kj = init_key_jar(**_args)
+
+    return InternalSigningService(entity_id, _kj)
 
 
 def make_signing_service(config, entity_id):
@@ -459,7 +477,7 @@ def make_signing_service(config, entity_id):
     :return: A SigningService instance
     """
 
-    _args = dict([(k,v) for k,v in config.items() if k in KJ_SPECS])
+    _args = dict([(k, v) for k, v in config.items() if k in KJ_SPECS])
     _kj = init_key_jar(**_args)
 
     if config['type'] == 'internal':
@@ -480,12 +498,12 @@ def make_signer(config, entity_id):
                                            entity_id)
 
     try:
-        sms_dir = config['ms_dir']
+        ssms_dir = config['sms_dir']
     except KeyError:
         msd = None
     else:
-        if not os.path.isdir(sms_dir):
-            os.makedirs(sms_dir)
+        if not os.path.isdir(ssms_dir):
+            os.makedirs(ssms_dir)
 
         try:
             _ctx = config['contexts']
@@ -494,7 +512,7 @@ def make_signer(config, entity_id):
 
         msd = {}
         for _c in _ctx:
-            _path = os.path.join(sms_dir, _c)
+            _path = os.path.join(ssms_dir, _c)
             if not os.path.isdir(_path):
                 os.mkdir(_path)
             msd[_c] = _path

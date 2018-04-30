@@ -1,17 +1,21 @@
-import json
 import logging
+import os
 import re
 from urllib.parse import quote_plus
 from urllib.parse import unquote_plus
 
+from oidcmsg.key_jar import init_key_jar
+from oidcmsg.message import Message
+
+from fedoidcmsg import CONTEXTS
+from fedoidcmsg import MIN_SET
 from fedoidcmsg import MetadataStatement
 from fedoidcmsg.bundle import FSJWKSBundle
 from fedoidcmsg.bundle import JWKSBundle
+from fedoidcmsg.file_system import FileSystem
 from fedoidcmsg.operator import Operator
 from fedoidcmsg.signing_service import KJ_SPECS
-from fedoidcmsg.signing_service import make_signer
-
-from oidcmsg.key_jar import init_key_jar
+from fedoidcmsg.signing_service import make_internal_signing_service
 
 __author__ = 'roland'
 
@@ -24,7 +28,7 @@ class FederationEntity(Operator):
     """
 
     def __init__(self, srv, iss='', signer=None, self_signer=None,
-                 fo_bundle=None):
+                 fo_bundle=None, context=''):
         """
 
         :param srv: A Client or Provider instance
@@ -43,6 +47,7 @@ class FederationEntity(Operator):
         # Who can sign request from this entity
         self.signer = signer
         self.federation = None
+        self.context = context
 
     @staticmethod
     def pick_by_priority(ms_list, priority=None):
@@ -132,88 +137,217 @@ class FederationEntity(Operator):
         statement['signing_keys'] = self.self_signer.export_jwks_as_json()
         return statement
 
-    def update_request(self, req, federation='', loes=None):
+
+class FederationEntityOOB(FederationEntity):
+    """
+    An entity in a OOB federation. For instance an OP or an RP.
+    """
+
+    def __init__(self, srv, iss='', signer=None, self_signer=None,
+                 fo_bundle=None, sms_dir='', context=''):
+        FederationEntity.__init__(self, srv, iss, signer=signer,
+                                  self_signer=self_signer, fo_bundle=fo_bundle,
+                                  context=context)
+
+        self.metadata_statements = {}
+
+        if isinstance(sms_dir, dict):
+            for key, _dir in sms_dir.items():
+                if key not in CONTEXTS:
+                    raise ValueError('{} not expected operation'.format(key))
+                self.metadata_statements[key] = FileSystem(
+                    _dir, key_conv={'to': quote_plus, 'from': unquote_plus})
+        elif sms_dir:
+            for item in os.listdir(sms_dir):
+                if item not in CONTEXTS:
+                    raise ValueError('{} not expected operation'.format(item))
+                _dir = os.path.join(sms_dir, item)
+                if os.path.isdir(_dir):
+                    self.metadata_statements[item] = FileSystem(
+                        _dir, key_conv={'to': quote_plus, 'from': unquote_plus})
+        else:
+            self.metadata_statements = MIN_SET
+
+    def add_sms_spec_to_request(self, req, federation='', loes=None):
         """
-        Update a request signed metadata statements.
+        Update a request with signed metadata statements.
         
         :param req: The request 
         :param federation: Federation Operator ID
         :param loes: List of :py:class:`fedoidc.operator.LessOrEqual` instances
         :return: The updated request
         """
-        if federation:
-            if self.signer.signing_service:
-                req = self.ace(req, [federation], 'registration')
+        if federation:  # A specific federation
+            if isinstance(federation, list):
+                req.update(self.gather_metadata_statements(federation))
             else:
-                req.update(
-                    self.signer.gather_metadata_statements(
-                        'registration', fos=[federation]))
-        else:
+                req.update(self.gather_metadata_statements([federation]))
+        else:  # All federations I belong to
             if loes:
                 _fos = list([r.fo for r in loes])
+                req.update(self.gather_metadata_statements(_fos))
             else:
-                return req
+                req.update(self.gather_metadata_statements())
 
-            if self.signer.signing_service:
-                self.ace(req, _fos, 'registration')
-            else:
-                req.update(
-                    self.signer.gather_metadata_statements(
-                        'registration', fos=_fos))
         return req
 
-    def ace(self, req, fos, context):
+    def self_sign(self, req, receiver=''):
         """
-        Add signing keys, create metadata statement and extend request.
+        Sign the extended request.
         
-        :param req: Request 
-        :param fos: List of Federation Operator IDs
-        :param context: One of :py:data:`fedoidc.CONTEXTS`
+        :param req: Request, a :py:class:`fedoidcmsg.MetadataStatement' instance
         """
-        _cms = MetadataStatement()
-        _cms.update(req)
-        _cms = self.add_signing_keys(_cms)
-        sms = self.signer.create_signed_metadata_statement(_cms, context,
-                                                           fos=fos)
-        return self.extend_with_ms(req, sms)
 
-    def get_signed_metadata_statements(self, context, fo=None):
+        creq = req.copy()
+        for ref in ['metadata_statement_uris', 'metadata_statements']:
+            try:
+                del creq[ref]
+            except KeyError:
+                pass
+
+        sms_spec = {}
+        for ref in ['metadata_statement_uris', 'metadata_statements']:
+            sms_spec[ref] = Message()
+
+            for foid, value in req[ref].items():
+                _copy = creq.copy()
+                _copy[ref] = MetadataStatement()
+                _copy[ref][foid] = value
+                _jws = self.self_signer.create(_copy, receiver=receiver)
+                sms_spec[ref][foid] = _jws
+
+        creq.update(sms_spec)
+        return creq
+
+    def gather_metadata_statements(self, fos=None, context=''):
         """
-        Find a set of signed metadata statements that fulfill the search
-        criteria.
-        
-        :param context: One value out of :py:data:`fedoidc.CONTEXTS` 
-        :param fo: A FO ID
-        :return: If no *fo* is given a list of FOs. If *fo* a single ID.
-            Will raise KeyError if nothin matches.
+        Only gathers metadata statements and returns them.
+
+        :param fos: Signed metadata statements from these Federation Operators
+            should be added.
+        :param context: context of the metadata exchange
+        :return: Dictionary with signed Metadata Statements as values
         """
-        if fo is None:
-            return self.signer.metadata_statements[context]
-        else:
-            return self.signer.metadata_statements[context][fo]
+
+        if not context:
+            context = self.context
+
+        _res = {}
+        if self.metadata_statements:
+            try:
+                cms = self.metadata_statements[context]
+            except KeyError:
+                if self.metadata_statements == {
+                    'register': {},
+                    'discovery': {},
+                    'response': {}
+                }:
+                    # No superior so an FO then. Nothing to add ..
+                    pass
+                else:
+                    logger.error(
+                        'No metadata statements for this context: {}'.format(
+                            context))
+                    raise ValueError('Wrong context "{}"'.format(context))
+            else:
+                if cms != {}:
+                    if fos is None:
+                        fos = list(cms.keys())
+
+                    for f in fos:
+                        try:
+                            val = cms[f]
+                        except KeyError:
+                            continue
+
+                        if val.startswith('http'):
+                            value_type = 'metadata_statement_uris'
+                        else:
+                            value_type = 'metadata_statements'
+
+                        try:
+                            _res[value_type][f] = val
+                        except KeyError:
+                            _res[value_type] = Message()
+                            _res[value_type][f] = val
+
+        return _res
+
+
+class FederationEntityAMS(FederationEntity):
+    """
+    An entity in a OOB federation. For instance an OP or an RP.
+    """
+
+    def __init__(self, srv, iss='', signer=None, self_signer=None,
+                 fo_bundle=None, mds_service='', context=''):
+        FederationEntity.__init__(self, srv, iss, signer=signer,
+                                  self_signer=self_signer, fo_bundle=fo_bundle,
+                                  context=context)
+
+        self.mds_service = mds_service
+
+
+class FederationEntitySwamid(FederationEntity):
+    """
+    An entity in a OOB federation. For instance an OP or an RP.
+    """
+
+    def __init__(self, srv, iss='', signer=None, self_signer=None,
+                 fo_bundle=None, mdss_endpoint='', context=''):
+        FederationEntity.__init__(self, srv, iss, signer=signer,
+                                  self_signer=self_signer, fo_bundle=fo_bundle,
+                                  context=context)
+
+        self.mdss_endpoint = mdss_endpoint
 
 
 def make_federation_entity(config, eid, httpcli=None):
-    if 'signer' in config:
-        signer = make_signer(config['signer'], eid)
+    """
+    Construct a :py:class:`fedoidcmsg.entity.FederationEntity` instance based
+    on given configuration.
+
+    :param config: Federation entity configuration
+    :param eid: Entity ID
+    :param httpcli: A http client instance to use when sending HTTP requests
+    :return: A :py:class:`fedoidcmsg.entity.FederationEntity` instance
+    """
+    args = {}
+    if 'self_signer' in config:
+        self_signer = make_internal_signing_service(config['self_signer'],
+                                                    eid)
+        args['self_signer'] = self_signer
+
+    try:
+        bundle_cnf = config['fo_bundle']
+    except KeyError:
+        pass
     else:
-        signer = None
+        _args = dict([(k, v) for k, v in bundle_cnf.items() if k in KJ_SPECS])
+        if _args:
+            _kj = init_key_jar(**_args)
+        else:
+            _kj = None
 
-    bundle_cnf = config['fo_bundle']
-    _args = dict([(k,v) for k,v in bundle_cnf.items() if k in KJ_SPECS])
-    if _args:
-        _kj = init_key_jar(**_args)
-    else:
-        _kj = None
+        if 'dir' in bundle_cnf:
+            jb = FSJWKSBundle(eid, _kj, bundle_cnf['dir'],
+                              key_conv={'to': quote_plus, 'from': unquote_plus})
+        else:
+            jb = JWKSBundle(eid, _kj)
+        args['fo_bundle'] = jb
 
-    if 'dir' in bundle_cnf:
-        jb = FSJWKSBundle(eid, _kj, bundle_cnf['dir'],
-                          key_conv={'to': quote_plus, 'from': unquote_plus})
-    else:
-        jb = JWKSBundle(eid, _kj)
+    try:
+        args['context'] = config['context']
+    except KeyError:
+        pass
 
-    # the federation entity key jar
-    # _args = dict([(k,v) for k,v in config.items() if k in KJ_SPECS])
-    # _kj = init_key_jar(**_args)
-
-    return FederationEntity(httpcli, iss=eid, signer=signer, fo_bundle=jb)
+    # These are mutually exclusive
+    if 'sms_dir' in config:
+        args['sms_dir'] = config['sms_dir']
+        return FederationEntityOOB(httpcli, iss=eid, **args)
+    elif 'mds_service' in config:
+        args['mds_service'] = config['mds_service']
+        return FederationEntityAMS(httpcli, iss=eid, **args)
+    elif 'mdss_endpoint' in config:
+        args['mdss_endpoint'] = config['mdss_endpoint']
+        return FederationEntitySwamid(httpcli, iss=eid, **args)

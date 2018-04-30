@@ -6,21 +6,18 @@ from urllib.parse import quote_plus
 from urllib.parse import unquote_plus
 from urllib.parse import urlparse
 
+from cryptojwt import as_bytes
+from oidcmsg.key_jar import build_keyjar
+from oidcmsg.key_jar import KeyJar
+
 from fedoidcmsg import MetadataStatement
 from fedoidcmsg import unfurl
 from fedoidcmsg.bundle import FSJWKSBundle
 from fedoidcmsg.bundle import JWKSBundle
 from fedoidcmsg.bundle import keyjar_to_jwks_private
-from fedoidcmsg.entity import FederationEntity
 from fedoidcmsg.file_system import FileSystem
 from fedoidcmsg.operator import Operator
 from fedoidcmsg.signing_service import InternalSigningService
-from fedoidcmsg.signing_service import Signer
-
-from cryptojwt import as_bytes
-
-from oidcmsg.key_jar import KeyJar
-from oidcmsg.key_jar import build_keyjar
 
 
 def make_fs_jwks_bundle(iss, fo_liss, sign_keyjar, keydefs, base_path=''):
@@ -60,7 +57,7 @@ def make_fs_jwks_bundle(iss, fo_liss, sign_keyjar, keydefs, base_path=''):
     return jb
 
 
-def make_jwks_bundle(iss, fo_liss, sign_keyjar, keydefs, base_path=''):
+def make_jwks_bundle(iss, fo_liss, sign_keyjar, keydefs):
     """
     Given a list of Federation identifiers creates a FSJWKBundle containing all
     the signing keys.
@@ -92,12 +89,8 @@ def make_ms(desc, leaf, operator, sup=None):
         'signer' and 'signer_add'.
     :param leaf: if the requester is the entity operator/agent
     :param operator: A dictionary containing Operator instance as values.
-    :param ms: Metadata statements to be added, dict. The values are
-        signed MetadataStatements.
-    :param ms_uris: Metadata Statement URIs to be added. 
-        Note that ms and ms_uris can not be present at the same time.
-        It can be one of them or none.
-    :return: A dictionary with the FO ID as key and the signed metadata 
+    :param sup: Superiors.
+    :return: A dictionary with the FO ID as key and the signed metadata
         statement as value.
     """
     req = MetadataStatement(**desc['request'])
@@ -205,7 +198,7 @@ def init(keydefs, tool_iss, liss, lifetime):
     sig_keys = build_keyjar(keydefs)[1]
     key_bundle = make_fs_jwks_bundle(tool_iss, liss, sig_keys, keydefs, './')
 
-    #sig_keys = build_keyjar(keydefs)[1]
+    # sig_keys = build_keyjar(keydefs)[1]
 
     operator = {}
 
@@ -256,7 +249,10 @@ def setup_ms(csms_def, ms_path, mds_dir, base_url, operators):
     signers = {}
     for iss, sms_def in csms_def.items():
         ms_dir = os.path.join(ms_path, quote_plus(iss))
-        signers[iss] = Signer(operators[iss].self_signer, ms_dir)
+        signers[iss] = {
+            'self_signer': operators[iss].self_signer,
+            'ms_dir': ms_dir
+        }
 
     return signers
 
@@ -272,6 +268,7 @@ def setup(keydefs, tool_iss, liss, ms_path, csms_def=None, mds_dir='',
     :param ms_path: Where to store the signed metadata statements and uris
     :param mds_dir: Where to store the uri -> metadata statement mapping
     :param base_url: Common base URL to all metadata_statement_uris
+    :param lifetime: Life time of signatures.
     :return: A tuple of (Signer dictionary and FSJWKSBundle instance)
     """
 
@@ -280,35 +277,6 @@ def setup(keydefs, tool_iss, liss, ms_path, csms_def=None, mds_dir='',
     signers = setup_ms(csms_def, ms_path, mds_dir, base_url, _init['operator'])
 
     return signers, _init['key_bundle']
-
-
-def create_federation_entity(iss, jwks_dir, sup='', fo_jwks=None, ms_dir='',
-                             entity=None, sig_keys=None, sig_def_keys=None):
-    fname = os.path.join(ms_dir, quote_plus(sup))
-
-    if fo_jwks:
-        _keybundle = FSJWKSBundle('', fdir=fo_jwks,
-                                  key_conv={'to': quote_plus,
-                                            'from': unquote_plus})
-
-        # Organisation information
-        _kj = _keybundle[sup]
-        signer = Signer(InternalSigningService(sup, _kj), ms_dir=fname)
-    else:
-        signer = Signer(ms_dir=fname)
-
-    # And then the FOs public keys
-    _public_keybundle = FSJWKSBundle('', fdir=jwks_dir,
-                                     key_conv={'to': quote_plus,
-                                               'from': unquote_plus})
-
-    # The OPs own signing keys
-    if sig_keys is None:
-        sig_keys = build_keyjar(sig_def_keys)[1]
-
-    self_signer = InternalSigningService(iss, sig_keys)
-    return FederationEntity(entity, iss=iss, self_signer=self_signer,
-                            signer=signer, fo_bundle=_public_keybundle)
 
 
 class MetaDataStore(FileSystem):
