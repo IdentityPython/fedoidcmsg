@@ -1,102 +1,43 @@
 import json
-import os
-import shutil
-import time
 from urllib.parse import quote_plus
 from urllib.parse import unquote_plus
 from urllib.parse import urlparse
 
-from fedoidcmsg.signing_service import InternalSigningService
-
-from fedoidcmsg import MetadataStatement
-from fedoidcmsg import test_utils
-from fedoidcmsg.bundle import FSJWKSBundle, JWKSBundle
-from fedoidcmsg.operator import FederationOperator
-from fedoidcmsg.operator import Operator
-from fedoidcmsg.test_utils import MetaDataStore
 from cryptojwt import as_unicode
 from cryptojwt.jws import factory
-
-from oidcmsg.key_jar import build_keyjar, KeyJar
+from oidcmsg.key_jar import build_keyjar
+from oidcmsg.key_jar import KeyJar
 from oidcmsg.key_jar import public_keys_keyjar
+
+from fedoidcmsg import MetadataStatement
+from fedoidcmsg.bundle import FSJWKSBundle
+from fedoidcmsg.bundle import JWKSBundle
+from fedoidcmsg.operator import Operator
+from fedoidcmsg.signing_service import InternalSigningService
+from fedoidcmsg.test_utils import create_federation_entities
+from fedoidcmsg.test_utils import make_signing_sequence
 
 KEYDEFS = [
     {"type": "RSA", "key": '', "use": ["sig"]},
     {"type": "EC", "crv": "P-256", "use": ["sig"]}
-    ]
+]
 
-TOOL_ISS = 'https://localhost'
+ALL = ['https://swamid.sunet.se', 'https://sunet.se', 'https://op.sunet.se',
+       'https://www.feide.no', 'https://edugain.com']
 
-FO = {
-    'swamid': 'https://swamid.sunet.se', 'feide': 'https://www.feide.no',
-    'edugain': 'https://edugain.com'
-    }
+ENTITY = create_federation_entities(ALL, KEYDEFS)
 
-OA = {'sunet': 'https://sunet.se'}
-
-IA = {}
-
-SMS_DEF = {
-    OA['sunet']: {
-        "discovery": {
-            FO['swamid']: [
-                {
-                    'request': {}, 'requester': OA['sunet'],
-                    'signer_add': {'federation_usage': 'discovery'},
-                    'signer': FO['swamid'], 'uri': False
-                    },
-                ],
-            FO['feide']: [
-                {
-                    'request': {}, 'requester': OA['sunet'],
-                    'signer_add': {'federation_usage': 'discovery'},
-                    'signer': FO['feide'], 'uri': True
-                    },
-                ],
-            FO['edugain']: [
-                {
-                    'request': {}, 'requester': FO['swamid'],
-                    'signer_add': {'federation_usage': 'discovery'},
-                    'signer': FO['edugain'], 'uri': True
-                    },
-                {
-                    'request': {}, 'requester': OA['sunet'],
-                    'signer_add': {}, 'signer': FO['swamid'], 'uri': True
-                    }
-                ]
-            },
-        "registration": {
-            FO['swamid']: [
-                {
-                    'request': {}, 'requester': OA['sunet'],
-                    'signer_add': {'federation_usage': 'registration'},
-                    'signer': FO['swamid'], 'uri': False
-                    },
-                ]
-            }
-        }
-    }
-
-# Clear out old stuff
-for d in ['mds', 'ms']:
-    if os.path.isdir(d):
-        shutil.rmtree(d)
-
-liss = list(FO.values())
-liss.extend(list(OA.values()))
-
-signer, keybundle = test_utils.setup(
-    KEYDEFS, TOOL_ISS, liss, ms_path='ms', csms_def=SMS_DEF,
-    mds_dir='msd', base_url='https://localhost')
+sign_seq = make_signing_sequence(['https://op.sunet.se', 'https://sunet.se',
+                                  'https://swamid.sunet.se'], ENTITY)
 
 
-def public_jwks_bundle(jwks_bundle):
+def public_jwks_bundle(eids):
     jb_copy = JWKSBundle('')
-    for fo, kj in jwks_bundle.bundle.items():
+    for eid in eids:
+        jwks = ENTITY[eid].signing_keys_as_jwks()
         kj_copy = KeyJar()
-        for owner in kj.owners():
-            public_keys_keyjar(kj, owner, kj_copy, owner)
-        jb_copy.bundle[fo] = kj_copy
+        kj_copy.import_jwks(jwks, eid)
+        jb_copy.bundle[eid] = kj_copy
     return jb_copy
 
 
@@ -116,20 +57,6 @@ class MockHTTPClient():
         return rsp
 
 
-def test_key_rotation():
-    _keyjar = build_keyjar(KEYDEFS)[1]
-    self_signer = InternalSigningService('https://example.com/op',
-                                         keyjar=_keyjar, keyconf=KEYDEFS,
-                                         remove_after=1)
-    fo = FederationOperator(iss='https://example.com/op',
-                            self_signer=self_signer)
-    fo.self_signer.rotate_keys()
-    assert len(fo.self_signer.keyjar.get_issuer_keys('')) == 4
-    time.sleep(1)
-    fo.self_signer.rotate_keys()
-    assert len(fo.self_signer.keyjar.get_issuer_keys('')) == 4
-
-
 def test_pack_metadata_statement():
     jb = FSJWKSBundle('', None, 'fo_jwks',
                       key_conv={'to': quote_plus, 'from': unquote_plus})
@@ -137,7 +64,7 @@ def test_pack_metadata_statement():
     self_signer = InternalSigningService('https://example.com/op',
                                          keyjar=_keyjar)
     op = Operator(self_signer=self_signer, jwks_bundle=jb,
-                  iss='https://example.com/')
+                  iss='https://example.com/op')
     req = MetadataStatement(issuer='https://example.org/op')
     sms = op.pack_metadata_statement(req)
     assert sms  # Should be a signed JWT
@@ -154,35 +81,17 @@ def test_pack_metadata_statement():
     assert r
 
 
-def test_pack_metadata_statement_other_iss():
-    _keyjar = build_keyjar(KEYDEFS)[1]
-    self_signer = InternalSigningService('https://example.com/op',
-                                         keyjar=_keyjar)
-    op = Operator(self_signer=self_signer, iss='https://example.com/')
-    req = MetadataStatement(issuer='https://example.org/op')
-    sms = op.pack_metadata_statement(req, iss='https://example.com/')
-    assert sms  # Should be a signed JWT
-    _jwt = factory(sms)
-    _body = json.loads(as_unicode(_jwt.jwt.part[1]))
-    assert _body['iss'] == 'https://example.com/'
-
-    # verify signature
-    _kj = public_keys_keyjar(_keyjar, '', None, op.iss)
-    r = _jwt.verify_compact(sms, _kj.get_signing_key(owner=op.iss))
-    assert r
-
-
 def test_pack_metadata_statement_other_alg():
     _keyjar = build_keyjar(KEYDEFS)[1]
     self_signer = InternalSigningService('https://example.com/op',
                                          keyjar=_keyjar)
-    op = Operator(self_signer=self_signer, iss='https://example.com/')
+    op = Operator(self_signer=self_signer, iss=self_signer.iss)
     req = MetadataStatement(issuer='https://example.org/op')
-    sms = op.pack_metadata_statement(req, alg='ES256')
+    sms = op.pack_metadata_statement(req, sign_alg='ES256')
     assert sms  # Should be a signed JWT
     _jwt = factory(sms)
     _body = json.loads(as_unicode(_jwt.jwt.part[1]))
-    assert _body['iss'] == 'https://example.com/'
+    assert _body['iss'] == self_signer.iss
 
     # verify signature
     _kj = public_keys_keyjar(_keyjar, '', None, op.iss)

@@ -1,7 +1,6 @@
 import copy
 import json
 import logging
-import time
 
 from cryptojwt.exception import BadSignature
 from cryptojwt.jws import JWSException
@@ -16,7 +15,6 @@ from fedoidcmsg import unfurl
 from oidcmsg.exception import MissingSigningKey
 from oidcmsg.oauth2 import Message
 from oidcmsg.jwt import JWT
-from oidcmsg.key_jar import build_keyjar
 from oidcmsg.time_util import utc_time_sans_frac
 
 __author__ = 'roland'
@@ -103,7 +101,7 @@ class LessOrEqual(object):
                 continue
             if k in orig:
                 if is_lesser(orig[k], v):
-                    _le[k] = v
+                    _le[k] = orig[k]
                 else:
                     _err.append({'claim': k, 'policy': orig[k], 'err': v,
                                  'signer': self.iss})
@@ -138,6 +136,8 @@ class LessOrEqual(object):
             for k, v in self.le.items():
                 if k not in self.sup.le:
                     res[k] = v
+                else:
+                    res[k] = self.sup.le[k]
             return res
         else:
             return self.le
@@ -228,10 +228,10 @@ class Operator(object):
                 pr.signing_keys = _pi.signing_keys
         return pr
 
-    def _unpack(self, json_ms, keyjar, cls, jwt_ms=None, liss=None):
+    def _unpack(self, ms_dict, keyjar, cls, jwt_ms=None, liss=None):
         """
         
-        :param json_ms: Metadata statement as a JSON document 
+        :param json_ms: Metadata statement as a dictionary
         :param keyjar: A keyjar with the necessary FO keys
         :param cls: What class to map the metadata into
         :param jwt_ms: Metadata statement as a JWS 
@@ -242,19 +242,19 @@ class Operator(object):
             liss = []
 
         _pr = ParseInfo()
-        _pr.input = json_ms
+        _pr.input = ms_dict
         ms_flag = False
-        if 'metadata_statements' in json_ms:
+        if 'metadata_statements' in ms_dict:
             ms_flag = True
-            for iss, _ms in json_ms['metadata_statements'].items():
+            for iss, _ms in ms_dict['metadata_statements'].items():
                 if liss and iss not in liss:
                     continue
                 _pr = self._ums(_pr, _ms, keyjar)
 
-        if 'metadata_statement_uris' in json_ms:
+        if 'metadata_statement_uris' in ms_dict:
             ms_flag = True
             if self.httpcli:
-                for iss, url in json_ms['metadata_statement_uris'].items():
+                for iss, url in ms_dict['metadata_statement_uris'].items():
                     if liss and iss not in liss:
                         continue
                     rsp = self.httpcli.http_request(url)
@@ -269,12 +269,12 @@ class Operator(object):
                 loaded = False
                 try:
                     keyjar.import_jwks_as_json(_ms['signing_keys'],
-                                               json_ms['iss'])
+                                               ms_dict['iss'])
                 except KeyError:
                     pass
                 except TypeError:
                     try:
-                        keyjar.import_jwks(_ms['signing_keys'], json_ms['iss'])
+                        keyjar.import_jwks(_ms['signing_keys'], ms_dict['iss'])
                     except Exception as err:
                         logger.error(err)
                         raise
@@ -286,7 +286,7 @@ class Operator(object):
                 if loaded:
                     logger.debug(
                         'Loaded signing keys belonging to {} into the '
-                        'keyjar'.format(json_ms['iss']))
+                        'keyjar'.format(ms_dict['iss']))
 
         if ms_flag is True and not _pr.parsed_statement:
             return _pr
@@ -300,7 +300,7 @@ class Operator(object):
                 logger.error('Encountered: {}'.format(err))
                 _pr.error[jwt_ms] = err
         else:
-            _pr.result = json_ms
+            _pr.result = ms_dict
 
         if _pr.result and _pr.parsed_statement:
             _prr = _pr.result
@@ -315,7 +315,7 @@ class Operator(object):
             _pr.result['metadata_statements'] = _msg
         return _pr
 
-    def unpack_metadata_statement(self, json_ms=None, jwt_ms='', keyjar=None,
+    def unpack_metadata_statement(self, ms_dict=None, jwt_ms='', keyjar=None,
                                   cls=ClientMetadataStatement, liss=None):
         """
         Starting with a signed JWT or a JSON document unpack and verify all
@@ -336,57 +336,32 @@ class Operator(object):
 
         if jwt_ms:
             try:
-                json_ms = unfurl(jwt_ms)
+                ms_dict = unfurl(jwt_ms)
             except JWSException as err:
                 logger.error('Could not unfurl jwt_ms due to {}'.format(err))
                 raise
 
-        if json_ms:
-            return self._unpack(json_ms, keyjar, cls, jwt_ms, liss)
+        if ms_dict:
+            return self._unpack(ms_dict, keyjar, cls, jwt_ms, liss)
         else:
-            raise AttributeError('Need one of json_ms or jwt_ms')
+            raise AttributeError('Need one of ms_dict or jwt_ms')
 
-    def pack_metadata_statement(self, metadata, keyjar=None, iss=None, alg='',
-                                jwt_args=None, lifetime=-1, **kwargs):
+    def pack_metadata_statement(self, metadata, receiver='', iss='', lifetime=0,
+                                sign_alg=''):
         """
         Given a MetadataStatement instance create a signed JWT.
 
         :param metadata: Original metadata statement as a MetadataStatement
             instance
-        :param keyjar: KeyJar in which the necessary signing keys should reside
-        :param iss: Issuer ID
-        :param alg: Which signing algorithm to use
-        :param jwt_args: Additional JWT attribute values
-        :param lifetime: Lifetime of the signed JWT
-        :param kwargs: Additional metadata statement attribute values
+        :param receiver: Receiver (audience) of the JWT
+        :param iss: Issuer ID if different from default
+        :param lifetime: jWT signature life time
+        :param sign_alg: JWT signature algorithm
         :return: A JWT
         """
-        if iss is None:
-            iss = self.iss
 
-        if keyjar is None:
-            keyjar = self.self_signer.keyjar
-
-        if lifetime == -1:
-            lifetime = self.lifetime
-
-        # Own copy
-        _metadata = copy.deepcopy(metadata)
-        _metadata.update(kwargs)
-        _jwt = JWT(keyjar, iss=iss, msg_cls=_metadata.__class__,
-                   lifetime=lifetime)
-        if alg:
-            _jwt.sign_alg = alg
-
-        if iss in keyjar.owners():
-            owner = iss
-        else:
-            owner = ''
-
-        if jwt_args:
-            return _jwt.pack(payload=_metadata.to_dict(), owner=owner, **jwt_args)
-        else:
-            return _jwt.pack(payload=_metadata.to_dict(), owner=owner)
+        return self.self_signer.sign(metadata, receiver=receiver, iss=iss,
+                                     lifetime=lifetime, sign_alg=sign_alg)
 
     def evaluate_metadata_statement(self, metadata, keyjar=None):
         """

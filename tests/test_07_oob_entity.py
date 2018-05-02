@@ -1,3 +1,5 @@
+from urllib.parse import quote_plus
+
 from oidcmsg.key_jar import KeyJar
 from oidcmsg.key_jar import build_keyjar
 from oidcmsg.key_jar import public_keys_keyjar
@@ -10,6 +12,7 @@ from fedoidcmsg.entity import FederationEntityOOB
 from fedoidcmsg.entity import make_federation_entity
 from fedoidcmsg.operator import Operator
 from fedoidcmsg.signing_service import InternalSigningService
+from fedoidcmsg.test_utils import make_signing_sequence
 
 KEYDEFS = [
     {"type": "RSA", "key": '', "use": ["sig"]},
@@ -36,7 +39,7 @@ def test_get_metadata_statement():
                                          iss='https://example.com/')
     op = Operator(self_signer=self_signer, iss='https://example.com/')
     req = MetadataStatement(foo='bar')
-    sms = op.pack_metadata_statement(req, alg='RS256')
+    sms = op.pack_metadata_statement(req, sign_alg='RS256')
     sms_dir = {'https://example.com': sms}
     req['metadata_statements'] = Message(**sms_dir)
     ent = FederationEntity(None, fo_bundle=public_jwks_bundle(jb))
@@ -131,71 +134,40 @@ def test_sequence():
                                        'metadata_statement_uris'}
 
 
-def test_update_metadata_statement():
-    SWAMID_CONF = {
+ENTITY = {}
+for entity in ['https://swamid.sunet.se', 'https://sunet.se',
+               'https://op.sunet.se']:
+    _id = quote_plus(entity)
+    conf = {
         'self_signer': {
-            'private_path': './swamid_private_jwks',
+            'private_path': 'private/{}.json'.format(_id),
             'key_defs': KEYDEFS,
-            'public_path': './swamid_public_jwks'
-        },
-        'sms_dir': ''
-    }
-    SWAMID = make_federation_entity(SWAMID_CONF, 'https://swamid.sunet.se')
-
-    SUNET_CONF = {
-        'self_signer': {
-            'private_path': './sunet_private_jwks',
-            'key_defs': KEYDEFS,
-            'public_path': './sunet_public_jwks'
-        },
-        'sms_dir': ''
-    }
-
-    SUNET = make_federation_entity(SUNET_CONF, 'https://sunet.se')
-    ms = MetadataStatement()
-    SUNET.add_signing_keys(ms)
-    # Sunet sends metadata to SWAMID for signing
-    sms = SWAMID.self_signer.sign(ms, 'https://sunet.se')
-    # SWAMID returns signed metadata statement to SUNET
-    SUNET.metadata_statements['discovery']['https://swamid.sunet.se'] = sms
-
-    config = {
-        'self_signer': {
-            'private_path': './op_private_jwks',
-            'key_defs': KEYDEFS,
-            'public_path': './op_public_jwks'
+            'public_path': 'public/{}.json'.format(_id)
         },
         'sms_dir': '',
         'context': 'discovery'
     }
-
-    op = make_federation_entity(config, 'https://op.sunet.se')
-
-    # create OP metadata_statement
-    metadata_statement = MetadataStatement(foo='bar')
-    op.add_signing_keys(metadata_statement)
-
-    # sent to SUNET for signing
-    SUNET.add_sms_spec_to_request(metadata_statement, context='discovery')
-    sms = SUNET.self_signer.sign(metadata_statement, 'https://op.sunet.se')
-
-    # signed metadata statement returned to OP and the OP adds it
-    # to its store of signed metadata statements
-    op.metadata_statements['discovery']['https://swamid.sunet.se'] = sms
+    ENTITY[entity] = make_federation_entity(conf, entity)
 
 
+def test_update_metadata_statement():
+
+    make_signing_sequence(['https://op.sunet.se', 'https://sunet.se',
+                           'https://swamid.sunet.se'], ENTITY)
+
+    op = ENTITY['https://op.sunet.se']
     metadata_statement = MetadataStatement(foo='bar')
     metadata_statement = op.update_metadata_statement(metadata_statement)
     assert metadata_statement
-    assert set(metadata_statement.keys()) == {'foo', 'signing_keys',
-                                              'metadata_statements'}
+    assert set(metadata_statement.keys()) == {'foo', 'metadata_statements'}
 
+    swamid = ENTITY['https://swamid.sunet.se']
     # on the RP side
     rp = FederationEntityOOB(None, 'https://rp.sunet.se')
     # Need the FO bundle, which in this case only needs Swamid's key
     jb = JWKSBundle('https://rp.sunet.se')
     _kj = KeyJar()
-    _kj.import_jwks(SWAMID.self_signer.public_keys(), 'https://swamid.sunet.se')
+    _kj.import_jwks(swamid.self_signer.public_keys(), swamid.iss)
     jb['https://swamid.sunet.se'] = _kj
     rp.jwks_bundle = jb
 

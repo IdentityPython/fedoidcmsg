@@ -1,3 +1,5 @@
+import copy
+import json
 import logging
 import os
 import re
@@ -92,7 +94,7 @@ class FederationEntity(Operator):
                 res.extend((iss, vals))
         return res
 
-    def get_metadata_statement(self, json_ms, cls=MetadataStatement,
+    def get_metadata_statement(self, input, cls=MetadataStatement,
                                context=''):
         """
         Unpack and evaluate a compound metadata statement. Goes through the
@@ -101,15 +103,23 @@ class FederationEntity(Operator):
         * verify that the given statements are expected to be used in this context
         * evaluate the metadata statements (= flatten)
 
-        :param json_ms: The metadata statement as a JSON document or a 
+        :param input: The metadata statement as a JSON document or a
             dictionary
         :param cls: The class the response should be typed into
         :param context: In which context the metadata statement should be used.
         :return: A list of :py:class:`fedoidc.operator.LessOrEqual` instances
         """
-        logger.debug('Incoming metadata statement: {}'.format(json_ms))
+        logger.debug('Incoming metadata statement: {}'.format(input))
 
-        _pi = self.unpack_metadata_statement(json_ms=json_ms, cls=cls)
+        if isinstance(input, dict):
+            data = input
+        else:
+            if isinstance(input, Message):
+                data = input.to_dict()
+            else:
+                data = json.loads(json_ms)
+
+        _pi = self.unpack_metadata_statement(ms_dict=data, cls=cls)
         if not _pi.result:
             return []
 
@@ -169,7 +179,7 @@ class FederationEntityOOB(FederationEntity):
                     self.metadata_statements[item] = FileSystem(
                         _dir, key_conv={'to': quote_plus, 'from': unquote_plus})
         else:
-            self.metadata_statements = MIN_SET
+            self.metadata_statements = copy.deepcopy(MIN_SET)
 
     def add_sms_spec_to_request(self, req, federation='', loes=None, context=''):
         """
@@ -297,7 +307,10 @@ class FederationEntityOOB(FederationEntity):
         """
         self.add_sms_spec_to_request(metadata_statement)
         self.add_signing_keys(metadata_statement)
-        return self.self_sign(metadata_statement, receiver)
+        metadata_statement = self.self_sign(metadata_statement, receiver)
+        # These are unprotected here so can as well be removed
+        del metadata_statement['signing_keys']
+        return metadata_statement
 
 
 class FederationEntityAMS(FederationEntity):

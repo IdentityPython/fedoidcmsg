@@ -5,8 +5,8 @@ import time
 
 import requests
 from cryptojwt import as_unicode
-from cryptojwt.jws import factory
 from cryptojwt.jws import JWSException
+from cryptojwt.jws import factory
 from oidcmsg.jwt import JWT
 from oidcmsg.key_jar import build_keyjar
 from oidcmsg.key_jar import init_key_jar
@@ -60,16 +60,68 @@ class InternalSigningService(SigningService):
     def create(self, req, receiver='', **kwargs):
         return self.sign(req=req, receiver=receiver, **kwargs)
 
-    def sign(self, req, receiver='', **kwargs):
+    def sign_and_encrypt(self, req, receiver='', iss='', lifetime=0,
+                         sign_alg='', enc_enc="A128CBC-HS256", enc_alg="RSA1_5"):
+
+        return self.pack(req=req, receiver=receiver, iss=iss, lifetime=lifetime,
+                         sign=True, sign_alg=sign_alg, encrypt=True,
+                         enc_enc=enc_enc, enc_alg=enc_alg)
+
+    def sign(self, req, receiver='', iss='', lifetime=0, sign_alg=''):
+        """
+        Creates a signed JWT
+
+        :param req: Original metadata statement as a
+            :py:class:`MetadataStatement` instance
+        :param receiver: The intended audience for the JWS
+        :param iss: Issuer or the JWT
+        :param lifetime: Lifetime of the signature
+        :param sign_alg: Which signature algorithm to use
+        :return: A signed JWT
+        """
+        return self.pack(req=req, receiver=receiver, iss=iss, lifetime=lifetime,
+                         sign=True, encrypt=False, sign_alg=sign_alg)
+
+    def encrypt(self, req, receiver='', iss='', lifetime=0,
+                enc_enc="A128CBC-HS256", enc_alg="RSA1_5"):
+        """
+
+        :param req: Original metadata statement as a
+            :py:class:`MetadataStatement` instance
+        :param receiver: The intended audience for the JWS
+        :param iss:
+        :param lifetime:
+        :param enc_alg:
+        :param enc_enc:
+        :return: A dictionary with a signed JWT as value with the key 'sms'
+        """
+
+        return self.pack(req=req, receiver=receiver, iss=iss, lifetime=lifetime,
+                          sign=False, encrypt=True, enc_enc=enc_enc,
+                         enc_alg=enc_alg)
+
+    def pack(self, req, receiver='', iss='', lifetime=0, sign=True,
+             sign_alg='', encrypt=False, enc_enc="A128CBC-HS256",
+             enc_alg="RSA1_5"):
         """
 
         :param req: Original metadata statement as a 
             :py:class:`MetadataStatement` instance
         :param receiver: The intended audience for the JWS
-        :param kwargs: Additional metadata statement attribute values
+        :param iss:
+        :param lifetime:
+        :param sign:
+        :param sign_alg:
+        :param encrypt:
+        :param enc_alg:
+        :param enc_enc:
         :return: A dictionary with a signed JWT as value with the key 'sms'
         """
-        iss = self.iss
+        if not iss:
+            iss = self.iss
+        if not lifetime:
+            lifetime = self.lifetime
+
         keyjar = self.keyjar
 
         # Own copy
@@ -77,8 +129,18 @@ class InternalSigningService(SigningService):
         if self.add_ons:
             _metadata.update(self.add_ons)
 
+        args = {}
+        if sign:
+            if sign_alg:
+                args['sign_alg'] = sign_alg
+            else:
+                args['sign_alg'] = self.alg
+        if encrypt:
+            args['enc_enc'] = enc_enc
+            args['enc_alg'] = enc_alg
+
         _jwt = JWT(keyjar, iss=iss, msg_cls=_metadata.__class__,
-                   lifetime=self.lifetime)
+                   lifetime=self.lifetime, **args)
         _jwt.sign_alg = self.alg
 
         if iss in keyjar.issuer_keys:
@@ -86,20 +148,17 @@ class InternalSigningService(SigningService):
         else:
             owner = ''
 
-        if kwargs:
-            sms = _jwt.pack(payload=_metadata.to_dict(), owner=owner,
-                            recv=receiver, **kwargs)
-        else:
-            sms = _jwt.pack(payload=_metadata.to_dict(), owner=owner,
-                            recv=receiver)
-
-        return sms
+        return _jwt.pack(payload=_metadata.to_dict(), owner=owner,
+                         recv=receiver)
 
     def name(self):
         return self.iss
 
     def public_keys(self):
-        return self.keyjar.export_jwks()
+        try:
+            return self.keyjar.export_jwks()
+        except KeyError:
+            return self.keyjar.export_jwks(issuer=self.iss)
 
     def rotate_keys(self, keyconf=None):
         _old = [k.kid for k in self.keyjar.get_issuer_keys('') if k.kid]
@@ -121,11 +180,11 @@ class InternalSigningService(SigningService):
                 if not k.inactive_since:
                     k.inactive_since = _now
 
-    def export_jwks(self):
-        return self.keyjar.export_jwks()
-
     def export_jwks_as_json(self):
-        return self.keyjar.export_jwks_as_json()
+        try:
+            return self.keyjar.export_jwks_as_json()
+        except KeyError:
+            return self.keyjar.export_jwks_as_json(issuer=self.iss)
 
 
 class WebSigningServiceClient(SigningService):
