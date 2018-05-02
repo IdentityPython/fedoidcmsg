@@ -1,3 +1,4 @@
+import os
 import time
 
 from cryptojwt.jws import factory
@@ -5,9 +6,9 @@ from oidcmsg.key_jar import KeyJar
 from oidcmsg.oidc import RegistrationRequest
 
 from fedoidcmsg.signing_service import InternalSigningService
+from fedoidcmsg.signing_service import WebSigningServiceClient
 from fedoidcmsg.signing_service import make_internal_signing_service
 from fedoidcmsg.signing_service import make_signing_service
-from fedoidcmsg.signing_service import WebSigningServiceClient
 from fedoidcmsg.test_utils import create_keyjars
 
 KEYDEFS = [
@@ -15,9 +16,11 @@ KEYDEFS = [
     {"type": "EC", "crv": "P-256", "use": ["sig"]}
 ]
 
+_path = os.path.realpath(__file__)
+root_dir, _fname = os.path.split(_path)
 
 KJ = create_keyjars(['https://swamid.sunet.se', 'https://sunet.se',
-                     'https://op.sunet.se'], KEYDEFS)
+                     'https://op.sunet.se'], KEYDEFS, root_dir=root_dir)
 
 
 class Response(object):
@@ -29,8 +32,10 @@ class Response(object):
 
 def test_make_internal_signing_service():
     config = {
-        'private_path': 'private/https%3A%2F%2Fswamid.sunet.se.json',
-        'public_path': 'public/https%3A%2F%2Fswamid.sunet.se.json',
+        'private_path': '{}/private/https%3A%2F%2Fswamid.sunet.se.json'.format(
+            root_dir),
+        'public_path': '{}/public/https%3A%2F%2Fswamid.sunet.se.json'.format(
+            root_dir),
     }
     signing_service = make_internal_signing_service(config,
                                                     'https://swamid.sunet.se')
@@ -42,7 +47,8 @@ def test_make_internal_signing_service():
 def test_make_web_signing_service():
     config = {
         'type': 'web',
-        'public_path': 'public/https%3A%2F%2Fswamid.sunet.se.json',
+        'public_path': '{}/public/https%3A%2F%2Fswamid.sunet.se.json'.format(
+            root_dir),
         'iss': 'https://swamid.sunet.se',
         'url': 'https://swamid.sunet.se/mdss'
     }
@@ -97,8 +103,10 @@ def test_web_signing_service():
 
 def test_key_rotation():
     config = {
-        'private_path': 'private/https%3A%2F%2Fswamid.sunet.se.json',
-        'public_path': 'public/https%3A%2F%2Fswamid.sunet.se.json',
+        'private_path': '{}/private/https%3A%2F%2Fswamid.sunet.se.json'.format(
+            root_dir),
+        'public_path': '{}/public/https%3A%2F%2Fswamid.sunet.se.json'.format(
+            root_dir),
     }
     signing_service = make_internal_signing_service(config,
                                                     'https://swamid.sunet.se')

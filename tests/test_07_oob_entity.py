@@ -1,3 +1,4 @@
+import os
 from urllib.parse import quote_plus
 
 from oidcmsg.key_jar import KeyJar
@@ -12,7 +13,7 @@ from fedoidcmsg.entity import FederationEntityOOB
 from fedoidcmsg.entity import make_federation_entity
 from fedoidcmsg.operator import Operator
 from fedoidcmsg.signing_service import InternalSigningService
-from fedoidcmsg.test_utils import make_signing_sequence
+from fedoidcmsg.test_utils import make_signing_sequence, create_federation_entities
 
 KEYDEFS = [
     {"type": "RSA", "key": '', "use": ["sig"]},
@@ -80,19 +81,23 @@ def test_add_signing_keys():
     assert 'signing_keys' in req
 
 
+_path = os.path.realpath(__file__)
+root_dir, _fname = os.path.split(_path)
+
+
 def test_make_federation_entity():
     config = {
         'self_signer': {
-            'private_path': './private_jwks',
+            'private_path': '{}/private_jwks'.format(root_dir),
             'key_defs': KEYDEFS,
-            'public_path': './public_jwks'
+            'public_path': '{}/public_jwks'.format(root_dir)
         },
-        'sms_dir': 'ms/https%3A%2F%2Fsunet.se',
+        'sms_dir': '{}/ms/https%3A%2F%2Fsunet.se'.format(root_dir),
         'fo_bundle': {
-            'private_path': './fo_bundle_signing_keys',
+            'private_path': '{}/fo_bundle_signing_keys'.format(root_dir),
             'key_defs': KEYDEFS,
-            'public_path': './pub_fo_bundle_signing_keys',
-            'dir': 'fo_jwks'
+            'public_path': '{}/pub_fo_bundle_signing_keys'.format(root_dir),
+            'dir': '{}/fo_jwks'.format(root_dir)
         }
     }
 
@@ -106,16 +111,16 @@ def test_make_federation_entity():
 def test_sequence():
     config = {
         'self_signer': {
-            'private_path': './private_jwks',
+            'private_path': '{}/private_jwks'.format(root_dir),
             'key_defs': KEYDEFS,
-            'public_path': './public_jwks'
+            'public_path': '{}/public_jwks'.format(root_dir)
         },
-        'sms_dir': 'ms/https%3A%2F%2Fsunet.se',
+        'sms_dir': '{}/ms/https%3A%2F%2Fsunet.se'.format(root_dir),
         'fo_bundle': {
-            'private_path': './fo_bundle_signing_keys',
+            'private_path': '{}/fo_bundle_signing_keys'.format(root_dir),
             'key_defs': KEYDEFS,
-            'public_path': './pub_fo_bundle_signing_keys',
-            'dir': 'fo_jwks'
+            'public_path': '{}/pub_fo_bundle_signing_keys'.format(root_dir),
+            'dir': '{}/fo_jwks'.format(root_dir)
         },
         'context': 'discovery'
     }
@@ -134,24 +139,12 @@ def test_sequence():
                                        'metadata_statement_uris'}
 
 
-ENTITY = {}
-for entity in ['https://swamid.sunet.se', 'https://sunet.se',
-               'https://op.sunet.se']:
-    _id = quote_plus(entity)
-    conf = {
-        'self_signer': {
-            'private_path': 'private/{}.json'.format(_id),
-            'key_defs': KEYDEFS,
-            'public_path': 'public/{}.json'.format(_id)
-        },
-        'sms_dir': '',
-        'context': 'discovery'
-    }
-    ENTITY[entity] = make_federation_entity(conf, entity)
+ENTITY = create_federation_entities(['https://op.sunet.se', 'https://sunet.se',
+                                     'https://swamid.sunet.se'], KEYDEFS,
+                                    root_dir=root_dir)
 
 
 def test_update_metadata_statement():
-
     make_signing_sequence(['https://op.sunet.se', 'https://sunet.se',
                            'https://swamid.sunet.se'], ENTITY)
 

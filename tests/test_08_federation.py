@@ -30,7 +30,10 @@ ALL = ['https://fo.example.org', 'https://fo1.example.org',
        'https://admin.example.org', 'https://ligo.example.org',
        'https://op.example.org']
 
-FEDENT = create_federation_entities(ALL, KEYDEFS)
+_path = os.path.realpath(__file__)
+root_dir, _fname = os.path.split(_path)
+
+FEDENT = create_federation_entities(ALL, KEYDEFS, root_dir=root_dir)
 
 FOP = FEDENT['https://fo.example.org']
 FOP.jwks_bundle = JWKSBundle(FOP.iss)

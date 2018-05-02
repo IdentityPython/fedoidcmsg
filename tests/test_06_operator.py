@@ -1,4 +1,5 @@
 import json
+import os
 from urllib.parse import quote_plus
 from urllib.parse import unquote_plus
 from urllib.parse import urlparse
@@ -25,7 +26,10 @@ KEYDEFS = [
 ALL = ['https://swamid.sunet.se', 'https://sunet.se', 'https://op.sunet.se',
        'https://www.feide.no', 'https://edugain.com']
 
-ENTITY = create_federation_entities(ALL, KEYDEFS)
+_path = os.path.realpath(__file__)
+root_dir, _fname = os.path.split(_path)
+
+ENTITY = create_federation_entities(ALL, KEYDEFS, root_dir=root_dir)
 
 sign_seq = make_signing_sequence(['https://op.sunet.se', 'https://sunet.se',
                                   'https://swamid.sunet.se'], ENTITY)
