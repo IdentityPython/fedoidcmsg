@@ -117,7 +117,7 @@ class FederationEntity(Operator):
             if isinstance(input, Message):
                 data = input.to_dict()
             else:
-                data = json.loads(json_ms)
+                data = json.loads(input)
 
         _pi = self.unpack_metadata_statement(ms_dict=data, cls=cls)
         if not _pi.result:
@@ -188,9 +188,10 @@ class FederationEntityOOB(FederationEntity):
         :param req: The request 
         :param federation: Federation Operator ID
         :param loes: List of :py:class:`fedoidc.operator.LessOrEqual` instances
+        :param context:
         :return: The updated request
         """
-        if federation:  # A specific federation
+        if federation:  # A specific federation or list of federations
             if isinstance(federation, list):
                 req.update(self.gather_metadata_statements(federation,
                                                            context=context))
@@ -291,7 +292,8 @@ class FederationEntityOOB(FederationEntity):
 
         return _res
 
-    def update_metadata_statement(self, metadata_statement, receiver=''):
+    def update_metadata_statement(self, metadata_statement, receiver='',
+                                  federation=None, context=''):
         """
         Update a metadata statement by:
          * adding signed metadata statements or uris pointing to signed
@@ -303,9 +305,12 @@ class FederationEntityOOB(FederationEntity):
         :param metadata_statement: A :py:class:`fedoidcmsg.MetadataStatement`
             instance
         :param receiver: The intended receiver of the metadata statement
+        :param federation:
+        :param context:
         :return: An augmented metadata statement
         """
-        self.add_sms_spec_to_request(metadata_statement)
+        self.add_sms_spec_to_request(metadata_statement, federation=federation,
+                                     context=context)
         self.add_signing_keys(metadata_statement)
         metadata_statement = self.self_sign(metadata_statement, receiver)
         # These are unprotected here so can as well be removed

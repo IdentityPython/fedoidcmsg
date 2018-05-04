@@ -6,7 +6,7 @@ from fedoidcmsg import MetadataStatement
 from fedoidcmsg.entity import make_federation_entity
 
 
-def make_signing_sequence(entity_id, entity_dict):
+def make_signing_sequence(entity_id, entity_dict, context='discovery'):
     """
     Signing sequence with nothing but keys no actual content
 
@@ -26,10 +26,10 @@ def make_signing_sequence(entity_id, entity_dict):
         ent.add_signing_keys(metadata_statement)
         # sends metadata to superior for signing
         sup = entity_dict[entity_id[i+1]]
-        sup.add_sms_spec_to_request(metadata_statement)
+        sup.add_sms_spec_to_request(metadata_statement, context=context)
         sms = sup.self_signer.sign(metadata_statement, ent.iss)
         # superior returns signed metadata statement who stores it
-        ent.metadata_statements['discovery'][fo] = sms
+        ent.metadata_statements[context][fo] = sms
         i -= 1
     return sms
 
@@ -47,7 +47,8 @@ def create_keyjars(owners, keydefs, root_dir='.'):
     return res
 
 
-def create_federation_entities(entities, keydefs, root_dir='.'):
+def create_federation_entities(entities, keydefs, root_dir='.',
+                               context='discovery'):
     res = {}
     for entity in entities:
         _id = quote_plus(entity)
@@ -58,13 +59,14 @@ def create_federation_entities(entities, keydefs, root_dir='.'):
                 'public_path': '{}/public/{}.json'.format(root_dir, _id)
             },
             'sms_dir': '',
-            'context': 'discovery'
+            'context': context
         }
         res[entity] = make_federation_entity(conf, entity)
     return res
 
 
-def create_compounded_metadata_statement(entity_id, entity_dict, statement):
+def create_compounded_metadata_statement(entity_id, entity_dict, statement,
+                                         context='discovery'):
     n = len(entity_id)
     i = n-1
     fo = entity_dict[entity_id[i]].iss
@@ -75,10 +77,10 @@ def create_compounded_metadata_statement(entity_id, entity_dict, statement):
         ent = entity_dict[entity_id[i]]
         ent.add_signing_keys(cms)
         sup = entity_dict[entity_id[i+1]]
-        sup.add_sms_spec_to_request(cms)
+        sup.add_sms_spec_to_request(cms, context=context)
         sms = sup.self_signer.sign(cms, ent.iss)
         # superior returns signed metadata statement who stores it
-        ent.metadata_statements['discovery'][fo] = sms
+        ent.metadata_statements[context][fo] = sms
         i -= 1
 
     return sms
