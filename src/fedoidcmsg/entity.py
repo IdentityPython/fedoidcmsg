@@ -30,7 +30,7 @@ class FederationEntity(Operator):
     """
 
     def __init__(self, srv, iss='', signer=None, self_signer=None,
-                 fo_bundle=None, context=''):
+                 fo_bundle=None, context='', entity_id=''):
         """
 
         :param srv: A Client or Provider instance
@@ -50,6 +50,7 @@ class FederationEntity(Operator):
         self.signer = signer
         self.federation = None
         self.context = context
+        self.entity_id = entity_id
 
     @staticmethod
     def pick_by_priority(ms_list, priority=None):
@@ -157,10 +158,10 @@ class FederationEntityOOB(FederationEntity):
     """
 
     def __init__(self, srv, iss='', signer=None, self_signer=None,
-                 fo_bundle=None, sms_dir='', context=''):
+                 fo_bundle=None, sms_dir='', context='', entity_id=''):
         FederationEntity.__init__(self, srv, iss, signer=signer,
                                   self_signer=self_signer, fo_bundle=fo_bundle,
-                                  context=context)
+                                  context=context, entity_id=entity_id)
 
         self.metadata_statements = {}
 
@@ -181,7 +182,8 @@ class FederationEntityOOB(FederationEntity):
         else:
             self.metadata_statements = copy.deepcopy(MIN_SET)
 
-    def add_sms_spec_to_request(self, req, federation='', loes=None, context=''):
+    def add_sms_spec_to_request(self, req, federation='', loes=None,
+                                context=''):
         """
         Update a request with signed metadata statements.
         
@@ -213,27 +215,40 @@ class FederationEntityOOB(FederationEntity):
         Sign the extended request.
         
         :param req: Request, a :py:class:`fedoidcmsg.MetadataStatement' instance
+        :param receiver: The intended user of this metadata statement
+        :return: An augmented set of request arguments
         """
+        if self.entity_id:
+            _iss = self.entity_id
+        else:
+            _iss = self.iss
 
         creq = req.copy()
-        for ref in ['metadata_statement_uris', 'metadata_statements']:
-            try:
-                del creq[ref]
-            except KeyError:
-                pass
+        if not 'metadata_statement_uris' in creq and not \
+                'metadata_statements' in creq:
+            _copy = creq.copy()
+            _jws = self.self_signer.sign(_copy, receiver=receiver, iss=_iss)
+            sms_spec = {'metadata_statements': {self.iss: _jws}}
+        else:
+            for ref in ['metadata_statement_uris', 'metadata_statements']:
+                try:
+                    del creq[ref]
+                except KeyError:
+                    pass
 
-        sms_spec = {}
-        for ref in ['metadata_statement_uris', 'metadata_statements']:
-            if ref not in req:
-                continue
-            sms_spec[ref] = Message()
+            sms_spec = {}
+            for ref in ['metadata_statement_uris', 'metadata_statements']:
+                if ref not in req:
+                    continue
+                sms_spec[ref] = Message()
 
-            for foid, value in req[ref].items():
-                _copy = creq.copy()
-                _copy[ref] = MetadataStatement()
-                _copy[ref][foid] = value
-                _jws = self.self_signer.sign(_copy, receiver=receiver)
-                sms_spec[ref][foid] = _jws
+                for foid, value in req[ref].items():
+                    _copy = creq.copy()
+                    _copy[ref] = MetadataStatement()
+                    _copy[ref][foid] = value
+                    _jws = self.self_signer.sign(_copy, receiver=receiver,
+                                                 iss=_iss)
+                    sms_spec[ref][foid] = _jws
 
         creq.update(sms_spec)
         return creq
@@ -380,10 +395,11 @@ def make_federation_entity(config, eid, httpcli=None):
             jb = JWKSBundle(eid, _kj)
         args['fo_bundle'] = jb
 
-    try:
-        args['context'] = config['context']
-    except KeyError:
-        pass
+    for item in ['context', 'entity_id']:
+        try:
+            args[item] = config[item]
+        except KeyError:
+            pass
 
     # These are mutually exclusive
     if 'sms_dir' in config:

@@ -140,7 +140,7 @@ class InternalSigningService(SigningService):
             args['enc_alg'] = enc_alg
 
         _jwt = JWT(keyjar, iss=iss, msg_cls=_metadata.__class__,
-                   lifetime=self.lifetime, **args)
+                   lifetime=lifetime, **args)
         _jwt.sign_alg = self.alg
 
         if iss in keyjar.issuer_keys:

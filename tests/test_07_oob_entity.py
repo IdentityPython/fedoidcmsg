@@ -170,3 +170,30 @@ def test_update_metadata_statement():
     assert l[0].iss == 'https://op.sunet.se'
     assert l[0].fo == 'https://swamid.sunet.se'
     assert l[0].le == {'foo':'bar'}
+
+
+def test_updating_metadata_no_superior():
+    op = ENTITY['https://op.sunet.se']
+    op.metadata_statements['discovery'] = {}
+    metadata_statement = MetadataStatement(foo='bar')
+    metadata_statement = op.update_metadata_statement(metadata_statement)
+    assert metadata_statement
+    assert set(metadata_statement.keys()) == {'foo', 'metadata_statements'}
+
+    # swamid = ENTITY['https://swamid.sunet.se']
+    # on the RP side
+    rp = FederationEntityOOB(None, 'https://rp.sunet.se')
+
+    # # Need the FO bundle, which in this case only needs Swamid's key
+    # jb = JWKSBundle('https://rp.sunet.se')
+    # _kj = KeyJar()
+    # _kj.import_jwks(swamid.self_signer.public_keys(), swamid.iss)
+    # jb['https://swamid.sunet.se'] = _kj
+    # rp.jwks_bundle = jb
+
+    l = rp.get_metadata_statement(metadata_statement, MetadataStatement,
+                                  'discovery')
+
+    assert l[0].iss == 'https://op.sunet.se'
+    assert l[0].fo == 'https://op.sunet.se'
+    assert l[0].le == {'foo':'bar'}

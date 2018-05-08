@@ -1,9 +1,9 @@
-import copy
 import json
 import logging
 
 from cryptojwt.exception import BadSignature
 from cryptojwt.jws import JWSException
+from oidcmsg.key_jar import KeyJar
 
 from fedoidcmsg import ClientMetadataStatement
 from fedoidcmsg import DoNotCompare
@@ -14,7 +14,6 @@ from fedoidcmsg import unfurl
 
 from oidcmsg.exception import MissingSigningKey
 from oidcmsg.oauth2 import Message
-from oidcmsg.jwt import JWT
 from oidcmsg.time_util import utc_time_sans_frac
 
 __author__ = 'roland'
@@ -181,7 +180,7 @@ class Operator(object):
                  iss=None, lifetime=3600):
         """
 
-        :param keyjar: Contains the operators signing keys
+        :param self_signer: A Signing Service instance
         :param jwks_bundle: Contains the federation operators signing keys
             for all the federations this instance wants to talk to.
             If present it MUST be a JWKSBundle instance.
@@ -228,10 +227,15 @@ class Operator(object):
                 pr.signing_keys = _pi.signing_keys
         return pr
 
+    def self_signed(self, ms_dict, jwt_ms, cls):
+        kj = KeyJar()
+        kj.import_jwks_as_json(ms_dict['signing_keys'], ms_dict['iss'])
+        return cls().from_jwt(jwt_ms, keyjar=kj)
+
     def _unpack(self, ms_dict, keyjar, cls, jwt_ms=None, liss=None):
         """
         
-        :param json_ms: Metadata statement as a dictionary
+        :param ms_dict: Metadata statement as a dictionary
         :param keyjar: A keyjar with the necessary FO keys
         :param cls: What class to map the metadata into
         :param jwt_ms: Metadata statement as a JWS 
@@ -295,8 +299,14 @@ class Operator(object):
             logger.debug("verifying signed JWT: {}".format(jwt_ms))
             try:
                 _pr.result = cls().from_jwt(jwt_ms, keyjar=keyjar)
-            except (JWSException, BadSignature, MissingSigningKey,
-                    KeyError) as err:
+            except MissingSigningKey:
+                if 'signing_keys' in ms_dict:
+                    try:
+                        _pr.result = self.self_signed(ms_dict, jwt_ms, cls)
+                    except MissingSigningKey as err:
+                        logger.error('Encountered: {}'.format(err))
+                        _pr.error[jwt_ms] = err
+            except (JWSException, BadSignature, KeyError) as err:
                 logger.error('Encountered: {}'.format(err))
                 _pr.error[jwt_ms] = err
         else:
@@ -321,7 +331,7 @@ class Operator(object):
         Starting with a signed JWT or a JSON document unpack and verify all
         the separate metadata statements.
 
-        :param json_ms: Metadata statement as a JSON document
+        :param ms_dict: Metadata statement as a dictionary
         :param jwt_ms: Metadata statement as JWT
         :param keyjar: Keys that should be used to verify the signature of the
             document
@@ -332,7 +342,10 @@ class Operator(object):
         """
 
         if not keyjar:
-            keyjar = self.jwks_bundle.as_keyjar()
+            if self.jwks_bundle:
+                keyjar = self.jwks_bundle.as_keyjar()
+            else:
+                keyjar = KeyJar()
 
         if jwt_ms:
             try:
