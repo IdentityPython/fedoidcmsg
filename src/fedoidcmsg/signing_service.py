@@ -11,6 +11,8 @@ from oidcmsg.jwt import JWT
 from oidcmsg.key_jar import build_keyjar
 from oidcmsg.key_jar import init_key_jar
 
+from fedoidcmsg import NoSigningKeys
+
 logger = logging.getLogger(__name__)
 
 
@@ -79,6 +81,15 @@ class InternalSigningService(SigningService):
         :param sign_alg: Which signature algorithm to use
         :return: A signed JWT
         """
+        if not sign_alg:
+            for key_type, s_alg in [('RSA', 'RS256'), ('EC', 'ES256')]:
+                if self.keyjar.get_signing_key(key_type=key_type):
+                    sign_alg = s_alg
+                    break
+
+        if not sign_alg:
+            raise NoSigningKeys('Could not find any signing keys')
+
         return self.pack(req=req, receiver=receiver, iss=iss, lifetime=lifetime,
                          sign=True, encrypt=False, sign_alg=sign_alg)
 
@@ -141,7 +152,7 @@ class InternalSigningService(SigningService):
 
         _jwt = JWT(keyjar, iss=iss, msg_cls=_metadata.__class__,
                    lifetime=lifetime, **args)
-        _jwt.sign_alg = self.alg
+        # _jwt.sign_alg = self.alg
 
         if iss in keyjar.issuer_keys:
             owner = iss
