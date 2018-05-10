@@ -38,6 +38,10 @@ class NoTrustedClaims(MetadataStatementError):
     pass
 
 
+class NoSigningKeys(Exception):
+    pass
+
+
 class MetadataStatement(JsonWebToken):
     """
     A base class for metadata statements based on JSON web token
