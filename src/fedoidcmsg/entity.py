@@ -30,7 +30,8 @@ class FederationEntity(Operator):
     """
 
     def __init__(self, srv, iss='', signer=None, self_signer=None,
-                 fo_bundle=None, context='', entity_id=''):
+                 fo_bundle=None, context='', entity_id='',
+                 fo_priority=None):
         """
 
         :param srv: A Client or Provider instance
@@ -51,6 +52,9 @@ class FederationEntity(Operator):
         self.federation = None
         self.context = context
         self.entity_id = entity_id
+        self.fo_priority = fo_priority or []
+        self.provider_federations = None
+        self.registration_federations = None
 
     @staticmethod
     def pick_by_priority(ms_list, priority=None):
@@ -158,10 +162,12 @@ class FederationEntityOOB(FederationEntity):
     """
 
     def __init__(self, srv, iss='', signer=None, self_signer=None,
-                 fo_bundle=None, sms_dir='', context='', entity_id=''):
+                 fo_bundle=None, sms_dir='', context='', entity_id='',
+                 fo_priority=None):
         FederationEntity.__init__(self, srv, iss, signer=signer,
                                   self_signer=self_signer, fo_bundle=fo_bundle,
-                                  context=context, entity_id=entity_id)
+                                  context=context, entity_id=entity_id,
+                                  fo_priority=fo_priority)
 
         self.metadata_statements = {}
 
@@ -339,10 +345,12 @@ class FederationEntityAMS(FederationEntity):
     """
 
     def __init__(self, srv, iss='', signer=None, self_signer=None,
-                 fo_bundle=None, mds_service='', context=''):
+                 fo_bundle=None, mds_service='', context='', entity_id='',
+                 fo_priority=None):
         FederationEntity.__init__(self, srv, iss, signer=signer,
                                   self_signer=self_signer, fo_bundle=fo_bundle,
-                                  context=context)
+                                  context=context, entity_id=entity_id,
+                                  fo_priority=fo_priority)
 
         self.mds_service = mds_service
 
@@ -353,10 +361,12 @@ class FederationEntitySwamid(FederationEntity):
     """
 
     def __init__(self, srv, iss='', signer=None, self_signer=None,
-                 fo_bundle=None, mdss_endpoint='', context=''):
+                 fo_bundle=None, mdss_endpoint='', context='', entity_id='',
+                 fo_priority=None):
         FederationEntity.__init__(self, srv, iss, signer=signer,
                                   self_signer=self_signer, fo_bundle=fo_bundle,
-                                  context=context)
+                                  context=context, entity_id=entity_id,
+                                  fo_priority=fo_priority)
 
         self.mdss_endpoint = mdss_endpoint
 
@@ -395,7 +405,7 @@ def make_federation_entity(config, eid, httpcli=None):
             jb = JWKSBundle(eid, _kj)
         args['fo_bundle'] = jb
 
-    for item in ['context', 'entity_id']:
+    for item in ['context', 'entity_id', 'fo_priority']:
         try:
             args[item] = config[item]
         except KeyError:
