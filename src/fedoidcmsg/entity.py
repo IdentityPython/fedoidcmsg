@@ -152,6 +152,10 @@ class FederationEntity(Operator):
         statement['signing_keys'] = self.self_signer.export_jwks_as_json()
         return statement
 
+    def add_sms_spec_to_request(self, req, federation='', loes=None,
+                                context=''):
+        return req
+
     def update_metadata_statement(self, req):
         return req
 
@@ -369,6 +373,11 @@ class FederationEntitySwamid(FederationEntity):
                                   fo_priority=fo_priority)
 
         self.mdss_endpoint = mdss_endpoint
+
+    def add_sms_spec_to_request(self, req, federation='', loes=None,
+                                context=''):
+        return req
+
 
 
 def make_federation_entity(config, eid, httpcli=None):
