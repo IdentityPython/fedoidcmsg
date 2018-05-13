@@ -59,16 +59,11 @@ setup(
         "Topic :: Software Development :: Libraries :: Python Modules"],
     install_requires=[
          'cryptojwt',
-         'oidcmsg',
-         "CherryPy",
-         'cherrypy-cors >= 1.5'],
-    dependency_links = [
-         "https://github.com/IdentityPython/oidcmsg/tarball/master#egg=oidcmsg"],
+         'oidcmsg==0.3.1'],
     zip_safe=False,
     cmdclass={'test': PyTest},
     tests_require=[
         "pytest",
-        "future"
     ],
     scripts=[
         'scripts/packer.py',
