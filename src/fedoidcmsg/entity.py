@@ -487,7 +487,7 @@ class FederationEntitySwamid(FederationEntity):
         return req
 
 
-def make_federation_entity(config, eid, httpcli=None):
+def make_federation_entity(config, eid='', httpcli=None):
     """
     Construct a :py:class:`fedoidcmsg.entity.FederationEntity` instance based
     on given configuration.
@@ -498,6 +498,13 @@ def make_federation_entity(config, eid, httpcli=None):
     :return: A :py:class:`fedoidcmsg.entity.FederationEntity` instance
     """
     args = {}
+
+    if not eid:
+        try:
+            eid = config['entity_id']
+        except KeyError:
+            pass
+
     if 'self_signer' in config:
         self_signer = make_internal_signing_service(config['self_signer'],
                                                     eid)
