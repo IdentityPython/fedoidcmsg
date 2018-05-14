@@ -8,6 +8,7 @@ from urllib.parse import unquote_plus
 
 from oidcmsg.key_jar import init_key_jar
 from oidcmsg.message import Message
+from oidcmsg.oidc import JsonWebToken
 
 from fedoidcmsg import CONTEXTS
 from fedoidcmsg import MIN_SET
@@ -350,23 +351,74 @@ class FederationEntityAMS(FederationEntity):
 
     def __init__(self, srv, iss='', signer=None, self_signer=None,
                  fo_bundle=None, mds_service='', context='', entity_id='',
-                 fo_priority=None):
+                 fo_priority=None, mds_owner=''):
         FederationEntity.__init__(self, srv, iss, signer=signer,
                                   self_signer=self_signer, fo_bundle=fo_bundle,
                                   context=context, entity_id=entity_id,
                                   fo_priority=fo_priority)
 
         self.mds_service = mds_service
+        self.mds_owner = mds_owner
 
     def add_sms_spec_to_request(self, req, federation='', loes=None,
-                                context=''):
-        if not isinstance(federation, list):
-            federation = [federation]
+                                context='', url=''):
+        """
+        Add signed metadata statements to the request
+
+        :param req: The request so far
+        :param federation: If only signed metadata statements from a specific
+            set of federations should be included this is the set.
+        :param loes: - not used -
+        :param context: What kind of request/response it is: 'registration',
+            'discovery' or 'response'. The later being registration response.
+        :param url: Just for testing !!
+        :return: A possibly augmented request.
+        """
+        # fetch the signed metadata statement collection
+
+        if federation:
+            if not isinstance(federation, list):
+                federation = [federation]
+
+        if not url:
+            url = "{}/getms/{}/{}".format(self.mds_service, context,
+                                          self.entity_id)
+
+        http_resp = self.httpcli('GET', url)
+
+        if http_resp.status_code >= 400:
+            raise ConnectionError('HTTP Error: {}'.format(http_resp.text))
+
+        # verify signature on response
+        msg = JsonWebToken().from_jwt(http_resp.text,
+                                      keyjar=self.jwks_bundle[self.mds_owner])
+
+        if msg['iss'] != self.mds_owner:
+            raise KeyError('Wrong iss')
+
+        if federation:
+            _ms = dict(
+                [(fo, _ms) for fo, _ms in msg.items() if fo in federation])
+        else:
+            _ms = msg.extra()
+            try:
+                del _ms['kid']
+            except KeyError:
+                pass
 
         _sms = {}
-        for fed in federation:
-            pass
-        req.update(_sms)
+        _smsu = {}
+        for fo, item in _ms.items():
+            if item.startswith('https://') or item.startswith('http://'):
+                _smsu[fo] = item
+            else:
+                _sms[fo] = item
+
+        if _sms:
+            req.update({'signed_metadata_statements': _sms})
+        if _smsu:
+            req.update({'signed_metadata_statement_uris': _smsu})
+
         return req
 
 
@@ -377,13 +429,14 @@ class FederationEntitySwamid(FederationEntity):
 
     def __init__(self, srv, iss='', signer=None, self_signer=None,
                  fo_bundle=None, mdss_endpoint='', context='', entity_id='',
-                 fo_priority=None):
+                 fo_priority=None, mds_owner=''):
         FederationEntity.__init__(self, srv, iss, signer=signer,
                                   self_signer=self_signer, fo_bundle=fo_bundle,
                                   context=context, entity_id=entity_id,
                                   fo_priority=fo_priority)
 
         self.mdss_endpoint = mdss_endpoint
+        self.mds_owner = mds_owner
 
     def add_sms_spec_to_request(self, req, federation='', loes=None,
                                 context='', url=''):
@@ -414,14 +467,23 @@ class FederationEntitySwamid(FederationEntity):
         if http_resp.status_code >= 400:
             raise ConnectionError('HTTP Error: {}'.format(http_resp.text))
 
-        _col = json.loads(http_resp.text)
+        msg = JsonWebToken().from_jwt(http_resp.text,
+                                      keyjar=self.jwks_bundle[self.mds_owner])
+
+        if msg['iss'] != self.mds_owner:
+            raise KeyError('Wrong iss')
+
         if federation:
             _sms = dict(
-                [(fo, _ms) for fo, _ms in _col.items() if fo in federation])
+                [(fo, _ms) for fo, _ms in msg.items() if fo in federation])
         else:
-            _sms = _col
+            _sms = msg.extra()
+            try:
+                del _sms['kid']
+            except KeyError:
+                pass
 
-        req.update({'signed_metadata_statements': _sms})
+        req.update({'signed_metadata_statement_uris': _sms})
         return req
 
 
@@ -459,7 +521,7 @@ def make_federation_entity(config, eid, httpcli=None):
             jb = JWKSBundle(eid, _kj)
         args['fo_bundle'] = jb
 
-    for item in ['context', 'entity_id', 'fo_priority']:
+    for item in ['context', 'entity_id', 'fo_priority', 'mds_owner']:
         try:
             args[item] = config[item]
         except KeyError:

@@ -32,9 +32,9 @@ class Response(object):
 
 def test_make_internal_signing_service():
     config = {
-        'private_path': '{}/private/https%3A%2F%2Fswamid.sunet.se.json'.format(
+        'private_path': '{}/private/https%3A%2F%2Fswamid.sunet.se'.format(
             root_dir),
-        'public_path': '{}/public/https%3A%2F%2Fswamid.sunet.se.json'.format(
+        'public_path': '{}/public/https%3A%2F%2Fswamid.sunet.se'.format(
             root_dir),
     }
     signing_service = make_internal_signing_service(config,
@@ -47,7 +47,7 @@ def test_make_internal_signing_service():
 def test_make_web_signing_service():
     config = {
         'type': 'web',
-        'public_path': '{}/public/https%3A%2F%2Fswamid.sunet.se.json'.format(
+        'public_path': '{}/public/https%3A%2F%2Fswamid.sunet.se'.format(
             root_dir),
         'iss': 'https://swamid.sunet.se',
         'url': 'https://swamid.sunet.se/mdss'
@@ -103,9 +103,9 @@ def test_web_signing_service():
 
 def test_key_rotation():
     config = {
-        'private_path': '{}/private/https%3A%2F%2Fswamid.sunet.se.json'.format(
+        'private_path': '{}/private/https%3A%2F%2Fswamid.sunet.se'.format(
             root_dir),
-        'public_path': '{}/public/https%3A%2F%2Fswamid.sunet.se.json'.format(
+        'public_path': '{}/public/https%3A%2F%2Fswamid.sunet.se'.format(
             root_dir),
     }
     signing_service = make_internal_signing_service(config,

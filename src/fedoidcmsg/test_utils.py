@@ -46,9 +46,9 @@ def create_keyjars(owners, keydefs, root_dir='.'):
     for entity in owners:
         _id = quote_plus(entity)
         conf = {
-                'private_path': '{}/private/{}.json'.format(root_dir, _id),
+                'private_path': '{}/private/{}'.format(root_dir, _id),
                 'key_defs': keydefs,
-                'public_path': '{}/public/{}.json'.format(root_dir, _id)
+                'public_path': '{}/public/{}'.format(root_dir, _id)
         }
         res[entity] = init_key_jar(**conf)
     return res
@@ -61,9 +61,9 @@ def create_federation_entities(entities, keydefs, root_dir='.',
         _id = quote_plus(entity)
         conf = {
             'self_signer': {
-                'private_path': '{}/private/{}.json'.format(root_dir, _id),
+                'private_path': '{}/private/{}'.format(root_dir, _id),
                 'key_defs': keydefs,
-                'public_path': '{}/public/{}.json'.format(root_dir, _id)
+                'public_path': '{}/public/{}'.format(root_dir, _id)
             },
             'sms_dir': '',
             'context': context
