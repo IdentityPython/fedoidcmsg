@@ -345,7 +345,7 @@ class FederationEntityOOB(FederationEntity):
 
 class FederationEntityAMS(FederationEntity):
     """
-    An entity in a OOB federation. For instance an OP or an RP.
+    An entity in a AMS federation. For instance an OP or an RP.
     """
 
     def __init__(self, srv, iss='', signer=None, self_signer=None,
@@ -358,10 +358,21 @@ class FederationEntityAMS(FederationEntity):
 
         self.mds_service = mds_service
 
+    def add_sms_spec_to_request(self, req, federation='', loes=None,
+                                context=''):
+        if not isinstance(federation, list):
+            federation = [federation]
+
+        _sms = {}
+        for fed in federation:
+            pass
+        req.update(_sms)
+        return req
+
 
 class FederationEntitySwamid(FederationEntity):
     """
-    An entity in a OOB federation. For instance an OP or an RP.
+    An entity in a SWAMID type federation. For instance an OP or an RP.
     """
 
     def __init__(self, srv, iss='', signer=None, self_signer=None,
@@ -375,9 +386,43 @@ class FederationEntitySwamid(FederationEntity):
         self.mdss_endpoint = mdss_endpoint
 
     def add_sms_spec_to_request(self, req, federation='', loes=None,
-                                context=''):
-        return req
+                                context='', url=''):
+        """
+        Add signed metadata statements to the request
 
+        :param req: The request so far
+        :param federation: If only signed metadata statements from a specific
+            set of federations should be included this is the set.
+        :param loes: - not used -
+        :param context: What kind of request/response it is: 'registration',
+            'discovery' or 'response'. The later being registration response.
+        :param url: Just for testing !!
+        :return: A possibly augmented request.
+        """
+        # fetch the signed metadata statement collection
+
+        if federation:
+            if not isinstance(federation, list):
+                federation = [federation]
+
+        if not url:
+            url = "{}/getsmscol/{}/{}".format(self.mdss_endpoint, context,
+                                              self.entity_id)
+
+        http_resp = self.httpcli('GET', url)
+
+        if http_resp.status_code >= 400:
+            raise ConnectionError('HTTP Error: {}'.format(http_resp.text))
+
+        _col = json.loads(http_resp.text)
+        if federation:
+            _sms = dict(
+                [(fo, _ms) for fo, _ms in _col.items() if fo in federation])
+        else:
+            _sms = _col
+
+        req.update({'signed_metadata_statements': _sms})
+        return req
 
 
 def make_federation_entity(config, eid, httpcli=None):

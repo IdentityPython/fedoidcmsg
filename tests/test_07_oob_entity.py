@@ -184,13 +184,6 @@ def test_updating_metadata_no_superior():
     # on the RP side
     rp = FederationEntityOOB(None, 'https://rp.sunet.se')
 
-    # # Need the FO bundle, which in this case only needs Swamid's key
-    # jb = JWKSBundle('https://rp.sunet.se')
-    # _kj = KeyJar()
-    # _kj.import_jwks(swamid.self_signer.public_keys(), swamid.iss)
-    # jb['https://swamid.sunet.se'] = _kj
-    # rp.jwks_bundle = jb
-
     l = rp.get_metadata_statement(metadata_statement, MetadataStatement,
                                   'discovery')
 
