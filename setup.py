@@ -59,7 +59,7 @@ setup(
         "Topic :: Software Development :: Libraries :: Python Modules"],
     install_requires=[
          'cryptojwt',
-         'oidcmsg==0.3.1'],
+         'oidcmsg>=0.3.1'],
     zip_safe=False,
     cmdclass={'test': PyTest},
     tests_require=[
