@@ -2,7 +2,7 @@
 
 import json
 
-from oic.utils.keyio import build_keyjar
+from oidcmsg.key_jar import build_keyjar
 
 KEYDEFS = [
     {"type": "RSA", "key": '', "use": ["sig"]},
