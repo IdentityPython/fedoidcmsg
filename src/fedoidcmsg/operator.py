@@ -177,7 +177,7 @@ class Operator(object):
     """
 
     def __init__(self, self_signer=None, jwks_bundle=None, httpcli=None,
-                 iss=None, lifetime=3600):
+                 iss=None, lifetime=3600, verify_ssl=True):
         """
 
         :param self_signer: A Signing Service instance
@@ -189,6 +189,7 @@ class Operator(object):
         :param iss: Issuer ID
         :param lifetime: Default lifetime of signed statements produced
             by this signer.
+        :param verify_ssl: Whether SSL certificates should be verified
         """
         self.self_signer = self_signer
         self.jwks_bundle = jwks_bundle
@@ -196,6 +197,7 @@ class Operator(object):
         self.iss = iss
         self.failed = {}
         self.lifetime = lifetime
+        self.verify_ssl = verify_ssl
 
     def signing_keys_as_jwks(self):
         """
@@ -261,7 +263,8 @@ class Operator(object):
                 for iss, url in ms_dict['metadata_statement_uris'].items():
                     if liss and iss not in liss:
                         continue
-                    rsp = self.httpcli.http_request(url)
+                    rsp = self.httpcli(method='GET', url=url,
+                                       verify=self.verify_ssl)
                     if rsp.status_code == 200:
                         _pr = self._ums(_pr, rsp.text, keyjar)
                     else:
