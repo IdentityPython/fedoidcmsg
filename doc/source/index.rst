@@ -12,6 +12,7 @@ Welcome to fedoidcmsg's documentation!
 
    intro
    fedoidcmsg
+   profile/swamid
 
 Indices and tables
 ==================
