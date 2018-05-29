@@ -63,13 +63,14 @@ class InternalSigningService(SigningService):
         return self.sign(req=req, receiver=receiver, **kwargs)
 
     def sign_and_encrypt(self, req, receiver='', iss='', lifetime=0,
-                         sign_alg='', enc_enc="A128CBC-HS256", enc_alg="RSA1_5"):
+                         sign_alg='', enc_enc="A128CBC-HS256", enc_alg="RSA1_5",
+                         aud=None):
 
         return self.pack(req=req, receiver=receiver, iss=iss, lifetime=lifetime,
                          sign=True, sign_alg=sign_alg, encrypt=True,
-                         enc_enc=enc_enc, enc_alg=enc_alg)
+                         enc_enc=enc_enc, enc_alg=enc_alg, aud=aud)
 
-    def sign(self, req, receiver='', iss='', lifetime=0, sign_alg=''):
+    def sign(self, req, receiver='', iss='', lifetime=0, sign_alg='', aud=None):
         """
         Creates a signed JWT
 
@@ -79,6 +80,7 @@ class InternalSigningService(SigningService):
         :param iss: Issuer or the JWT
         :param lifetime: Lifetime of the signature
         :param sign_alg: Which signature algorithm to use
+        :param aud: The audience, a list of receivers.
         :return: A signed JWT
         """
         if not sign_alg:
@@ -94,7 +96,7 @@ class InternalSigningService(SigningService):
                          sign=True, encrypt=False, sign_alg=sign_alg)
 
     def encrypt(self, req, receiver='', iss='', lifetime=0,
-                enc_enc="A128CBC-HS256", enc_alg="RSA1_5"):
+                enc_enc="A128CBC-HS256", enc_alg="RSA1_5", aud=None):
         """
 
         :param req: Original metadata statement as a
@@ -104,6 +106,7 @@ class InternalSigningService(SigningService):
         :param lifetime:
         :param enc_alg:
         :param enc_enc:
+        :param aud: The audience, a list of receivers.
         :return: A dictionary with a signed JWT as value with the key 'sms'
         """
 
@@ -113,12 +116,12 @@ class InternalSigningService(SigningService):
 
     def pack(self, req, receiver='', iss='', lifetime=0, sign=True,
              sign_alg='', encrypt=False, enc_enc="A128CBC-HS256",
-             enc_alg="RSA1_5"):
+             enc_alg="RSA1_5", aud=None):
         """
 
         :param req: Original metadata statement as a 
             :py:class:`MetadataStatement` instance
-        :param receiver: The intended audience for the JWS
+        :param receiver: The immediate receiver of the JWS
         :param iss:
         :param lifetime:
         :param sign:
@@ -126,6 +129,7 @@ class InternalSigningService(SigningService):
         :param encrypt:
         :param enc_alg:
         :param enc_enc:
+        :param aud: The audience, a list of receivers.
         :return: A dictionary with a signed JWT as value with the key 'sms'
         """
         if not iss:
@@ -160,7 +164,7 @@ class InternalSigningService(SigningService):
             owner = ''
 
         return _jwt.pack(payload=_metadata.to_dict(), owner=owner,
-                         recv=receiver)
+                         recv=receiver, aud=aud)
 
     def name(self):
         return self.iss
