@@ -13,6 +13,10 @@ root_dir, _fname = os.path.split(_path)
 
 KEYDEFS = [{"type": "EC", "crv": "P-256", "use": ["sig"]}]
 
+MDSS_KEYJAR = init_key_jar(public_path='mdss_public',
+                           private_path='mdss_private',
+                           key_defs=KEYDEFS)
+
 
 class TestFederationEntity(object):
     @pytest.fixture(autouse=True)
@@ -24,7 +28,8 @@ class TestFederationEntity(object):
                 'public_path': '{}/public_jwks'.format(root_dir)
             },
             'mdss_endpoint': 'https://swamid.sunet.se/mdss',
-            'mds_owner': 'https://swamid.sunet.se',
+            'mdss_owner': 'https://swamid.sunet.se',
+            'mdss_keys': 'mdss_public',
             'fo_bundle': {
                 'private_path': '{}/fo_bundle_signing_keys'.format(root_dir),
                 'key_defs': KEYDEFS,
@@ -59,16 +64,12 @@ class TestFederationEntity(object):
         payload = {
             "https://swamid.sunet.se/": "https://mdss.sunet.se/getsms/https%3A%2F%2Frp.example.com%2Fms.jws/https%3A%2F%2Fswamid.sunet.se%2F"
         }
-        # Swamid keys
-        kj = init_key_jar(
-            private_path='private/https%3A%2F%2Fswamid.sunet.se',
-            public_path='public/https%3A%2F%2Fswamid.sunet.se',
-            iss=self.fe.mds_owner
-        )
+        # Swamid MDSS keys
+        kj = MDSS_KEYJAR
 
-        alice = JWT(kj, iss=self.fe.mds_owner, lifetime=600)
+        alice = JWT(kj, iss=self.fe.mdss_owner, lifetime=600, sign_alg='ES256')
         _jwt = alice.pack(payload=payload)
 
         httpserver.serve_content(_jwt)
         aug_msg = self.fe.add_sms_spec_to_request(req=msg, url=httpserver.url)
-        assert 'signed_metadata_statement_uris' in aug_msg
+        assert 'metadata_statement_uris' in aug_msg

@@ -135,8 +135,7 @@ def test_sequence():
 
     assert updated_req
     assert set(updated_req.keys()) == {'foo', 'signing_keys',
-                                       'metadata_statements',
-                                       'metadata_statement_uris'}
+                                       'metadata_statements'}
 
 
 ENTITY = create_federation_entities(['https://op.sunet.se', 'https://sunet.se',

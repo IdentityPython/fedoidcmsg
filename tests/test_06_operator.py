@@ -53,7 +53,7 @@ class MockHTTPClient():
     def __init__(self, mds):
         self.mds = mds
 
-    def http_request(self, url):
+    def __call__(self, method, url):
         p = urlparse(url)
         rsp = Response()
         rsp.status_code = 200

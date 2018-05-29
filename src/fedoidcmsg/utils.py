@@ -134,7 +134,7 @@ def get_signing_keys(claims, keyjar, httpcli):
     if 'signed_jwks_uri' not in claims:
         return None
 
-    res = httpcli.get(claims['signed_jwks_uri'])
+    res = httpcli(method='GET', url=claims['signed_jwks_uri'])
 
     if res.status == 200:
         _jws = JWS()
