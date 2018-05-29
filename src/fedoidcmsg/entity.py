@@ -6,7 +6,9 @@ import re
 from urllib.parse import quote_plus
 from urllib.parse import unquote_plus
 
+from oidcmsg.key_bundle import KeyBundle
 from oidcmsg.key_jar import init_key_jar
+from oidcmsg.key_jar import KeyJar
 from oidcmsg.message import Message
 from oidcmsg.oidc import JsonWebToken
 
@@ -32,7 +34,7 @@ class FederationEntity(Operator):
 
     def __init__(self, srv, iss='', signer=None, self_signer=None,
                  fo_bundle=None, context='', entity_id='',
-                 fo_priority=None):
+                 fo_priority=None, verify_ssl=True):
         """
 
         :param srv: A Client or Provider instance
@@ -43,10 +45,12 @@ class FederationEntity(Operator):
             entity produces.
         :param fo_bundle: A bundle of keys that can be used to verify
             the root signature of a compounded metadata statement.
+        :param fo_priority:
+        :param verify_ssl: Whether SSL certificates should be verified
         """
 
         Operator.__init__(self, self_signer=self_signer, iss=iss, httpcli=srv,
-                          jwks_bundle=fo_bundle)
+                          jwks_bundle=fo_bundle, verify_ssl=verify_ssl)
 
         # Who can sign request from this entity
         self.signer = signer
@@ -143,6 +147,51 @@ class FederationEntity(Operator):
         else:
             return []
 
+    def self_sign(self, req, receiver='', aud=None):
+        """
+        Sign the extended request.
+
+        :param req: Request, a :py:class:`fedoidcmsg.MetadataStatement' instance
+        :param receiver: The intended user of this metadata statement
+        :param aud: The audience, a list of receivers.
+        :return: An augmented set of request arguments
+        """
+        if self.entity_id:
+            _iss = self.entity_id
+        else:
+            _iss = self.iss
+
+        creq = req.copy()
+        if not 'metadata_statement_uris' in creq and not \
+                'metadata_statements' in creq:
+            _copy = creq.copy()
+            _jws = self.self_signer.sign(_copy, receiver=receiver, iss=_iss,
+                                         aud=aud)
+            sms_spec = {'metadata_statements': {self.iss: _jws}}
+        else:
+            for ref in ['metadata_statement_uris', 'metadata_statements']:
+                try:
+                    del creq[ref]
+                except KeyError:
+                    pass
+
+            sms_spec = {'metadata_statements': Message()}
+
+            for ref in ['metadata_statement_uris', 'metadata_statements']:
+                if ref not in req:
+                    continue
+
+                for foid, value in req[ref].items():
+                    _copy = creq.copy()
+                    _copy[ref] = Message()
+                    _copy[ref][foid] = value
+                    _jws = self.self_signer.sign(_copy, receiver=receiver,
+                                                 iss=_iss, aud=aud)
+                    sms_spec['metadata_statements'][foid] = _jws
+
+        creq.update(sms_spec)
+        return creq
+
     def add_signing_keys(self, statement):
         """
         Adding signing keys by value to a statement.
@@ -157,8 +206,30 @@ class FederationEntity(Operator):
                                 context=''):
         return req
 
-    def update_metadata_statement(self, req):
-        return req
+    def update_metadata_statement(self, metadata_statement, receiver='',
+                                  federation=None, context=''):
+        """
+        Update a metadata statement by:
+         * adding signed metadata statements or uris pointing to signed
+           metadata statements.
+         * adding the entities signing keys
+         * create metadata statements one per signed metadata statement or uri
+           sign these and add them to the metadata statement
+
+        :param metadata_statement: A :py:class:`fedoidcmsg.MetadataStatement`
+            instance
+        :param receiver: The intended receiver of the metadata statement
+        :param federation:
+        :param context:
+        :return: An augmented metadata statement
+        """
+        self.add_sms_spec_to_request(metadata_statement, federation=federation,
+                                     context=context)
+        self.add_signing_keys(metadata_statement)
+        metadata_statement = self.self_sign(metadata_statement, receiver)
+        # These are unprotected here so can as well be removed
+        del metadata_statement['signing_keys']
+        return metadata_statement
 
 
 class FederationEntityOOB(FederationEntity):
@@ -221,49 +292,6 @@ class FederationEntityOOB(FederationEntity):
 
         return req
 
-    def self_sign(self, req, receiver=''):
-        """
-        Sign the extended request.
-        
-        :param req: Request, a :py:class:`fedoidcmsg.MetadataStatement' instance
-        :param receiver: The intended user of this metadata statement
-        :return: An augmented set of request arguments
-        """
-        if self.entity_id:
-            _iss = self.entity_id
-        else:
-            _iss = self.iss
-
-        creq = req.copy()
-        if not 'metadata_statement_uris' in creq and not \
-                'metadata_statements' in creq:
-            _copy = creq.copy()
-            _jws = self.self_signer.sign(_copy, receiver=receiver, iss=_iss)
-            sms_spec = {'metadata_statements': {self.iss: _jws}}
-        else:
-            for ref in ['metadata_statement_uris', 'metadata_statements']:
-                try:
-                    del creq[ref]
-                except KeyError:
-                    pass
-
-            sms_spec = {}
-            for ref in ['metadata_statement_uris', 'metadata_statements']:
-                if ref not in req:
-                    continue
-                sms_spec[ref] = Message()
-
-                for foid, value in req[ref].items():
-                    _copy = creq.copy()
-                    _copy[ref] = MetadataStatement()
-                    _copy[ref][foid] = value
-                    _jws = self.self_signer.sign(_copy, receiver=receiver,
-                                                 iss=_iss)
-                    sms_spec[ref][foid] = _jws
-
-        creq.update(sms_spec)
-        return creq
-
     def gather_metadata_statements(self, fos=None, context=''):
         """
         Only gathers metadata statements and returns them.
@@ -318,31 +346,6 @@ class FederationEntityOOB(FederationEntity):
 
         return _res
 
-    def update_metadata_statement(self, metadata_statement, receiver='',
-                                  federation=None, context=''):
-        """
-        Update a metadata statement by:
-         * adding signed metadata statements or uris pointing to signed
-           metadata statements.
-         * adding the entities signing keys
-         * create metadata statements one per signed metadata statement or uri
-           sign these and add them to the metadata statement
-
-        :param metadata_statement: A :py:class:`fedoidcmsg.MetadataStatement`
-            instance
-        :param receiver: The intended receiver of the metadata statement
-        :param federation:
-        :param context:
-        :return: An augmented metadata statement
-        """
-        self.add_sms_spec_to_request(metadata_statement, federation=federation,
-                                     context=context)
-        self.add_signing_keys(metadata_statement)
-        metadata_statement = self.self_sign(metadata_statement, receiver)
-        # These are unprotected here so can as well be removed
-        del metadata_statement['signing_keys']
-        return metadata_statement
-
 
 class FederationEntityAMS(FederationEntity):
     """
@@ -351,7 +354,7 @@ class FederationEntityAMS(FederationEntity):
 
     def __init__(self, srv, iss='', signer=None, self_signer=None,
                  fo_bundle=None, mds_service='', context='', entity_id='',
-                 fo_priority=None, mds_owner=''):
+                 fo_priority=None, mds_owner='', verify_ssl=True):
         FederationEntity.__init__(self, srv, iss, signer=signer,
                                   self_signer=self_signer, fo_bundle=fo_bundle,
                                   context=context, entity_id=entity_id,
@@ -359,6 +362,7 @@ class FederationEntityAMS(FederationEntity):
 
         self.mds_service = mds_service
         self.mds_owner = mds_owner
+        self.verify_ssl = verify_ssl
 
     def add_sms_spec_to_request(self, req, federation='', loes=None,
                                 context='', url=''):
@@ -382,9 +386,9 @@ class FederationEntityAMS(FederationEntity):
 
         if not url:
             url = "{}/getms/{}/{}".format(self.mds_service, context,
-                                          self.entity_id)
+                                          quote_plus(self.entity_id))
 
-        http_resp = self.httpcli('GET', url)
+        http_resp = self.httpcli(method='GET', url=url, verify=self.verify_ssl)
 
         if http_resp.status_code >= 400:
             raise ConnectionError('HTTP Error: {}'.format(http_resp.text))
@@ -415,9 +419,9 @@ class FederationEntityAMS(FederationEntity):
                 _sms[fo] = item
 
         if _sms:
-            req.update({'signed_metadata_statements': _sms})
+            req.update({'metadata_statements': _sms})
         if _smsu:
-            req.update({'signed_metadata_statement_uris': _smsu})
+            req.update({'metadata_statement_uris': _smsu})
 
         return req
 
@@ -429,14 +433,26 @@ class FederationEntitySwamid(FederationEntity):
 
     def __init__(self, srv, iss='', signer=None, self_signer=None,
                  fo_bundle=None, mdss_endpoint='', context='', entity_id='',
-                 fo_priority=None, mds_owner=''):
+                 fo_priority=None, mdss_owner='', verify_ssl=True,
+                 mdss_keys=''):
         FederationEntity.__init__(self, srv, iss, signer=signer,
                                   self_signer=self_signer, fo_bundle=fo_bundle,
                                   context=context, entity_id=entity_id,
-                                  fo_priority=fo_priority)
+                                  fo_priority=fo_priority,
+                                  verify_ssl=verify_ssl)
 
         self.mdss_endpoint = mdss_endpoint
-        self.mds_owner = mds_owner
+        self.mdss_owner = mdss_owner
+
+        kj = KeyJar(verify_ssl=verify_ssl)
+        if mdss_keys.startswith('http'):
+            kj.add_url(mdss_owner, self.mdss_keys)
+        else:
+            kb = KeyBundle(source=mdss_keys, fileformat='jwks')
+            kj.add_kb(mdss_owner, kb=kb)
+
+        self.mdss_keys = kj
+        self.verify_ssl = verify_ssl
 
     def add_sms_spec_to_request(self, req, federation='', loes=None,
                                 context='', url=''):
@@ -460,17 +476,16 @@ class FederationEntitySwamid(FederationEntity):
 
         if not url:
             url = "{}/getsmscol/{}/{}".format(self.mdss_endpoint, context,
-                                              self.entity_id)
+                                              quote_plus(self.entity_id))
 
-        http_resp = self.httpcli('GET', url)
+        http_resp = self.httpcli(method='GET', url=url, verify=self.verify_ssl)
 
         if http_resp.status_code >= 400:
             raise ConnectionError('HTTP Error: {}'.format(http_resp.text))
 
-        msg = JsonWebToken().from_jwt(http_resp.text,
-                                      keyjar=self.jwks_bundle[self.mds_owner])
+        msg = JsonWebToken().from_jwt(http_resp.text, keyjar=self.mdss_keys)
 
-        if msg['iss'] != self.mds_owner:
+        if msg['iss'] != self.mdss_owner:
             raise KeyError('Wrong iss')
 
         if federation:
@@ -483,11 +498,11 @@ class FederationEntitySwamid(FederationEntity):
             except KeyError:
                 pass
 
-        req.update({'signed_metadata_statement_uris': _sms})
+        req.update({'metadata_statement_uris': _sms})
         return req
 
 
-def make_federation_entity(config, eid='', httpcli=None):
+def make_federation_entity(config, eid='', httpcli=None, verify_ssl=True):
     """
     Construct a :py:class:`fedoidcmsg.entity.FederationEntity` instance based
     on given configuration.
@@ -495,6 +510,7 @@ def make_federation_entity(config, eid='', httpcli=None):
     :param config: Federation entity configuration
     :param eid: Entity ID
     :param httpcli: A http client instance to use when sending HTTP requests
+    :param verify_ssl: Whether TLS/SSL certificates should be verified
     :return: A :py:class:`fedoidcmsg.entity.FederationEntity` instance
     """
     args = {}
@@ -534,13 +550,20 @@ def make_federation_entity(config, eid='', httpcli=None):
         except KeyError:
             pass
 
+    if 'entity_id' not in args:
+        args['entity_id'] = eid
+
     # These are mutually exclusive
     if 'sms_dir' in config:
         args['sms_dir'] = config['sms_dir']
         return FederationEntityOOB(httpcli, iss=eid, **args)
     elif 'mds_service' in config:
+        args['verify_ssl'] = verify_ssl
         args['mds_service'] = config['mds_service']
         return FederationEntityAMS(httpcli, iss=eid, **args)
     elif 'mdss_endpoint' in config:
-        args['mdss_endpoint'] = config['mdss_endpoint']
+        args['verify_ssl'] = verify_ssl
+        # These are mandatory for this type of entity
+        for key in ['mdss_endpoint', 'mdss_owner', 'mdss_keys']:
+            args[key] = config[key]
         return FederationEntitySwamid(httpcli, iss=eid, **args)
