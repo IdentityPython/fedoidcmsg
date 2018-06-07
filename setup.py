@@ -58,8 +58,8 @@ setup(
         "Programming Language :: Python :: 3.6",
         "Topic :: Software Development :: Libraries :: Python Modules"],
     install_requires=[
-         'cryptojwt',
-         'oidcmsg>=0.3.1'],
+         'cryptojwt>=0.3.1',
+         'oidcmsg>=0.3.5'],
     zip_safe=False,
     cmdclass={'test': PyTest},
     tests_require=[
