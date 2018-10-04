@@ -5,11 +5,11 @@ import time
 
 import requests
 from cryptojwt import as_unicode
-from cryptojwt.jws import JWSException
-from cryptojwt.jws import factory
-from oidcmsg.jwt import JWT
-from oidcmsg.key_jar import build_keyjar
-from oidcmsg.key_jar import init_key_jar
+from cryptojwt.jws.exception import JWSException
+from cryptojwt.jws.jws import factory
+from cryptojwt.jwt import JWT
+from cryptojwt.key_jar import build_keyjar
+from cryptojwt.key_jar import init_key_jar
 
 from fedoidcmsg import NoSigningKeys
 

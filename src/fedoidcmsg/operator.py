@@ -2,8 +2,8 @@ import json
 import logging
 
 from cryptojwt.exception import BadSignature
-from cryptojwt.jws import JWSException
-from oidcmsg.key_jar import KeyJar
+from cryptojwt.jws.exception import JWSException
+from cryptojwt.key_jar import KeyJar
 
 from fedoidcmsg import ClientMetadataStatement
 from fedoidcmsg import DoNotCompare

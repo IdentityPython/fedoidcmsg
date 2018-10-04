@@ -6,9 +6,9 @@ import re
 from urllib.parse import quote_plus
 from urllib.parse import unquote_plus
 
-from oidcmsg.key_bundle import KeyBundle
-from oidcmsg.key_jar import init_key_jar
-from oidcmsg.key_jar import KeyJar
+from cryptojwt.key_bundle import KeyBundle
+from cryptojwt.key_jar import init_key_jar
+from cryptojwt.key_jar import KeyJar
 from oidcmsg.message import Message
 from oidcmsg.oidc import JsonWebToken
 

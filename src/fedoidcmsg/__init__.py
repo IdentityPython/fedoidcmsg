@@ -1,13 +1,13 @@
 import json
 import logging
 
-from cryptojwt.jws import factory
+from cryptojwt.jws.jws import factory
 
-from oidcmsg import key_bundle
+from cryptojwt import key_bundle
 from oidcmsg import oidc
 
 from oidcmsg.exception import VerificationError
-from oidcmsg.key_jar import KeyJar
+from cryptojwt.key_jar import KeyJar
 from oidcmsg.message import OPTIONAL_LIST_OF_STRINGS
 from oidcmsg.message import SINGLE_OPTIONAL_STRING
 from oidcmsg.message import SINGLE_OPTIONAL_JSON
