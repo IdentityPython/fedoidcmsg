@@ -4,10 +4,10 @@ import os
 from urllib.parse import quote_plus
 from urllib.parse import unquote_plus
 
-from oidcmsg.jwt import JWT
-from oidcmsg.key_jar import build_keyjar
-from oidcmsg.key_jar import init_key_jar
-from oidcmsg.key_jar import KeyJar
+from cryptojwt.jwt import JWT
+from cryptojwt.key_jar import build_keyjar
+from cryptojwt.key_jar import init_key_jar
+from cryptojwt.key_jar import KeyJar
 
 from fedoidcmsg.file_system import FileSystem
 from fedoidcmsg.signing_service import KJ_SPECS

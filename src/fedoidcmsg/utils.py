@@ -1,15 +1,15 @@
 import json
 
-from cryptojwt import as_unicode
-from cryptojwt.jws import alg2keytype
-from cryptojwt.jws import JWS
-from cryptojwt.jws import factory
+from cryptojwt.utils import as_unicode
+from cryptojwt.jws.utils import alg2keytype
+from cryptojwt.jws.jws import JWS
+from cryptojwt.jws.jws import factory
 
 from fedoidcmsg import MetadataStatement
 from fedoidcmsg.bundle import jwks_to_keyjar
 
 from oidcmsg.oidc import JsonWebToken
-from oidcmsg.jwt import JWT
+from cryptojwt.jwt import JWT
 
 
 def self_sign_jwks(keyjar, iss, kid='', lifetime=3600):

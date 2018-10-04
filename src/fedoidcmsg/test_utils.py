@@ -1,6 +1,6 @@
 from urllib.parse import quote_plus
 
-from oidcmsg.key_jar import init_key_jar
+from cryptojwt.key_jar import init_key_jar
 
 from fedoidcmsg import MetadataStatement
 from fedoidcmsg.entity import make_federation_entity
